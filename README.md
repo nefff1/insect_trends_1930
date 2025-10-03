@@ -2,7 +2,7 @@
 
 This repository contains codes and additional data which were used in the analyses for the following manuscript:
 
-Neff F, Bollmann K, Chittaro Y, Gossner MM, Herzog F, Korner-Nievergelt F, Litsios G, Martínez-Núñez C, Moretti M, Rey E, Sanchez A, Knop E. **Ninety-year trends reveal sharpest insect declines mid-20th century.**
+Neff F, Bollmann K, Chittaro Y, Gossner MM, Herzog F, Korner-Nievergelt F, Litsios G, Martínez-Núñez C, Moretti M, Rey E, Sanchez A, Knop E. **Ninety-year trends reveal sharpest insect declines mid-20th century.**
 
 In this study, based on species records data, mean annual occupancy was estimated for 595 saproxylic beetle species and 216 buttefly species (Papilionoidea, incl. Zygaenidae moths) in six biogeographic zones in Switzerland. The data cover the years 1930–2021 (occupancy estimates were determined per two-year interval; 1930/31, 1932/33, etc.). Trends in saproxylic beetle and butterfly species richness were reconstructed for the biogeographic zones and the whole of Switzerland. Richness trends were related to a set of environmental variables (land use, climate) and to species traits (size, specialisation, temperature niche).
 
