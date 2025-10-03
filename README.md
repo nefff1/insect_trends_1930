@@ -1,5 +1,7 @@
 # Codes and data to analyse trends of saproxylic beetle and butterfly species richness between 1930 and 2021 in Switzerland
 
+[![](https://zenodo.org/badge/DOI/10.5281/zenodo.17256301.svg)](https://doi.org/10.5281/zenodo.17256301)
+
 This repository contains codes and additional data which were used in the analyses for the following manuscript:
 
 Neff F, Bollmann K, Chittaro Y, Gossner MM, Herzog F, Korner-Nievergelt F, Litsios G, Martínez-Núñez C, Moretti M, Rey E, Sanchez A, Knop E. **Ninety-year trends reveal sharpest insect declines mid-20th century.**
