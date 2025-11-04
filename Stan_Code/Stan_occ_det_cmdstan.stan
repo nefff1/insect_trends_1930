@@ -136,7 +136,7 @@ model {
   // Priors --------------------------------------------------------------------.
   target += normal_lpdf(mu_o | 0, 1.5);
   
-  target += cauchy_lpdf(sigma_a_year | 0, 1); // how flat should this be chosen? year-to-year variation!
+  target += cauchy_lpdf(sigma_a_year | 0, 1);
   
   for (j in 1:L_area){
       target += normal_lpdf(alpha_year[1,j] | 0, 1.5);
@@ -192,6 +192,6 @@ model {
 
 generated quantities {
   int z[P];         // occupancy indicator, 0/1
-----------------------------------------------------------------------------------------------------------------------------------------------------------------  z = bernoulli_logit_rng(logit_psi);
+  z = bernoulli_logit_rng(logit_psi);
 }
 

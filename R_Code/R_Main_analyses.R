@@ -2302,7 +2302,8 @@ p1 <- d_smry_sapro |>
              labeller = as_labeller(sapply(v_grouplabels, 
                                            function(x) paste0("\n\n\n", x)))) +
   scale_colour_manual(values = v_groupcols) +
-  scale_x_continuous(breaks = c(-4, -2, 0, 2, 4)) +
+  scale_x_continuous(breaks = case_when(sel_interval == 8 ~ c(-4, -2, 0, 2, 4), 
+                                        sel_interval == 12 ~ c(-10, -5, 0, 5, 10))) +
   theme(legend.position = "none",
         axis.title.y = element_blank(),
         axis.title = element_text(size = v_textsize["axis.title"]),
@@ -2310,6 +2311,8 @@ p1 <- d_smry_sapro |>
         strip.text = element_text(size = v_textsize["axis.title"])) +
   labs(x = paste0("Species richness trend change\n(percentage point change per ",
                   sel_interval, " years)"))
+
+
 
 # effect size plot -------------------------------------------------------------.
 
@@ -2351,7 +2354,8 @@ mean_ric <- (mean(d_ric_reg_mean_sapro$mean /
                       d_ric_mean_butter$mean[d_ric_mean_butter$two_A == 1930])) / 2 * 100
 
 
-d_plot_effectsize <- expand_grid(effect_size = -c(-4, -2, 0, 2, 4),
+d_plot_effectsize <- expand_grid(effect_size = case_when(sel_interval == 8 ~ c(-4, -2, 0, 2, 4), 
+                                                         sel_interval == 12 ~ c(-10, -5, 0, 5, 10)),
                                  group = c("Sapro", "Butter")) |> 
   mutate(mean = case_when(group == "Sapro" ~  mean_trend_sapro * sel_interval * 100,
                           group == "Butter" ~ mean_trend_butter * sel_interval * 100),

@@ -43,7 +43,7 @@ v_textsize <- c(plotlabel = 9,
 d_censuses <- read.csv2("Data/Drivers/Census_data_raw.csv")
 
 # Temperature ------------------------------------------------------------------.
-# reconstructed gridded temperature data from MeteoSwiss (www.meteoswiss.admin.ch)
+# reconstructed gridded temperature data from MeteoSwiss (www.meteoswiss.admin.ch; TrecabsM)
 nc_temperature <- nc_open("Data/Drivers/TrecabsM1901_ch02.lonlat_190101010000_202112010000.nc")
 
 # biogeographic zones ----------------------------------------------------------.

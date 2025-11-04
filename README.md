@@ -24,7 +24,7 @@ The following R code files are included in the folder *R_Code*:
 
 The following Stan code file is included in the folder *Stan_Code*:
 
--   **Stan_occ_det_cmdstan.stan**: Stan model code for the occupancy-detection models (called by the respective R code files)
+-   **Stan_occ_det_cmdstan.stan**: Stan model code for the occupancy-detection models (called by the respective R code files). The basic structure of the code is based on [code published by Hiroki Itô](https://github.com/stan-dev/example-models/blob/master/BPA/Ch.13/site-occ_cov.stan).
 
 The sources of external data are indicated in the code files. Occupancy estimates are available from Zenodo (<https://doi.org/10.5281/zenodo.17255265>). The following additional data files necessary to reproduce the analyses are available from the folder *Data*:
 
@@ -90,6 +90,8 @@ The sources of external data are indicated in the code files. Occupancy estimate
 
     -   temperature_abs: estimate absolute mean annual temperature anomaly (real number)
 
+    Most variables are based on data in the file 'Drivers/Census_data_raw.csv' (see sources and licences therein). The variables 'temperature_change' and 'temperature_abs' were derived from gridded, reconstructed climate data provided by MeteoSwiss (<https://www.meteoswiss.admin.ch>; TrecabsM; licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)).
+
 -   **Drivers/Census_data_raw.csv**: Raw data from different censuses, which were used to calculate some of the environmental variables. At the level of Swiss cantons. Contains the following columns:
 
     -   year: year of the data
@@ -115,3 +117,7 @@ The sources of external data are indicated in the code files. Occupancy estimate
     -   source: source of the data
 
 -   **Other/GBIF/d_taxonomy_GBIF_sapro.csv**: File used to match GBIF taxon keys to taxonomic names used in the present analyses. Used during temperature niche calculation of saproxylic beetles.
+
+***License***
+
+*The research data in the folder 'Data' is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). For the codes in the folders 'R_Code' and 'Stan_Code', the supplied LICENSE applies.*
