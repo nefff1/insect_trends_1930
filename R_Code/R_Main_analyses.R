@@ -2312,92 +2312,9 @@ p1 <- d_smry_sapro |>
   labs(x = paste0("Species richness trend change\n(percentage point change per ",
                   sel_interval, " years)"))
 
-
-
-# effect size plot -------------------------------------------------------------.
-
-d_new_overall <- d_mod_sapro |> 
-  summarise(across(c(temperature_abs, temperature_change,
-                     human_pop_change,
-                     mechanisation_abs,
-                     grassland_area_abs, grassland_area_change,
-                     wood_harvest_int_change, 
-                     forest_area_abs, forest_area_change),
-                   ~ mean(.))) |> 
-  expand_grid(mechanisation_period = sort(unique(d_mod_sapro$mechanisation_period))) |> 
-  expand_grid(after_storm = sort(unique(d_mod_sapro$after_storm)))
-
-m_pred_overall_raw <- posterior_epred(mod_main_sapro, d_new_overall,
-                                      re_formula = NA) 
-mean_trend_sapro <- mean(m_pred_overall_raw)
-
-
-d_new_overall <- d_mod_butter |> 
-  summarise(across(c(temperature_abs, temperature_change,
-                     human_pop_change,
-                     mechanisation_abs,
-                     grassland_area_abs, grassland_area_change,
-                     wood_harvest_int_change, 
-                     forest_area_abs, forest_area_change),
-                   ~ mean(.))) |> 
-  expand_grid(mechanisation_period = sort(unique(d_mod_butter$mechanisation_period))) |> 
-  expand_grid(after_storm = sort(unique(d_mod_butter$after_storm)))
-
-m_pred_overall_raw <- posterior_epred(mod_main_butter, d_new_overall,
-                                      re_formula = NA) 
-mean_trend_butter <- mean(m_pred_overall_raw)
-
-# grand mean of regional richness
-mean_ric <- (mean(d_ric_reg_mean_sapro$mean / 
-                    d_ric_mean_sapro$mean[d_ric_mean_sapro$two_A == 1930]) +
-               mean(d_ric_reg_mean_butter$mean / 
-                      d_ric_mean_butter$mean[d_ric_mean_butter$two_A == 1930])) / 2 * 100
-
-
-d_plot_effectsize <- expand_grid(effect_size = case_when(sel_interval == 8 ~ c(-4, -2, 0, 2, 4), 
-                                                         sel_interval == 12 ~ c(-10, -5, 0, 5, 10)),
-                                 group = c("Sapro", "Butter")) |> 
-  mutate(mean = case_when(group == "Sapro" ~  mean_trend_sapro * sel_interval * 100,
-                          group == "Butter" ~ mean_trend_butter * sel_interval * 100),
-         y = effect_size + mean,
-         group = factor(group, levels = names(v_grouplabels))) |> 
-  expand_grid(t = c(0, sel_interval)) |> 
-  mutate(y = ifelse(t == 0, mean_ric, mean_ric + y))
-
-
-p2 <- d_plot_effectsize |> 
-  ggplot(aes(x = t, y = y, colour = group)) +
-  geom_hline(yintercept = mean_ric, lty = 2) +
-  geom_point() +
-  geom_text(data = function(x) x |> 
-              filter(t != 0),
-            aes(label = effect_size,
-                x = t * 1.1),
-            hjust = .5,
-            size = v_textsize["axis.text"] / ggplot2:::.pt) +
-  geom_line(aes(group = effect_size)) +
-  scale_colour_manual(values = v_groupcols) +
-  facet_grid(~ group,
-             labeller = as_labeller(v_grouplabels)) +
-  theme(legend.position = "none",
-        axis.title = element_blank(),
-        axis.text = element_text(size = v_textsize["axis.text"]),
-        strip.text = element_blank(),
-        strip.background = element_blank()) +
-  scale_x_continuous(limits = c(0, sel_interval * 1.15),
-                     breaks = c(0, sel_interval),
-                     labels = c("t", paste0("t + ", sel_interval, " years"))) +
-  scale_y_continuous(breaks = c(100, 95, 90))
-
-(p <- plot_grid(p1, p2, ncol = 1,
-                align = "v",
-                rel_heights = c(2, 1),
-                labels = c("a", "b"), 
-                label_size = v_textsize["plotlabel"]))
-
-
+# save figure
 cairo_pdf(paste0("Output/Figures/lm_ric_mod_both_",
                  sel_interval, "yrs.pdf"),
-          width = 90 / 25.4, height = (90+45) / 25.4, fallback_resolution = 400)
-print(p)
+          width = 90 / 25.4, height = 90 / 25.4, fallback_resolution  = 400)
+p1
 dev.off()
