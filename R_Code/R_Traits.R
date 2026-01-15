@@ -92,14 +92,13 @@ sf_wordclim <- st_transform(sf_wordclim, crs = st_crs(sf_cgrs_europe))
 names(sf_wordclim)[1] <- "Tniche"
 
 # Average T over CGRS grid:
-
 sf_wordclim_cgrs <- st_join(sf_wordclim, sf_cgrs_europe,
                             join = st_within) # choose only those completely within CGRS grid. Pragmatic and time-saving choice
 
 sf_wordclim_cgrs <- sf_wordclim_cgrs %>%
   filter(!is.na(CGRSNAME)) # points outside grid / between two grid cells
 
-# mean across grid
+# mean temperature across cgrs grid
 sf_wordclim_cgrs <- sf_wordclim_cgrs %>%
   group_by(CGRSNAME) %>%
   summarise(Tniche = mean(Tniche),
@@ -110,6 +109,7 @@ d_cgrs_europe <- sf_cgrs_europe %>%
   as.data.frame() %>%
   left_join(sf_wordclim_cgrs, by = "CGRSNAME")
 
+# add to spatial data
 sf_cgrs_europe$Tniche <- d_cgrs_europe$Tniche
 sf_cgrs_europe <- sf_cgrs_europe %>%
   filter(!is.na(Tniche))
@@ -119,6 +119,7 @@ sf_cgrs_europe <- sf_cgrs_europe %>%
 # available from https://doi.org/10.15468/dl.mak332
 
 d_gbif_full <- fread("Data/Other/GBIF/0041029-240906103802322/occurrence.csv")
+# file to standardise names to the taxonomy used in the present study
 d_std <- fread("Data/Other/GBIF/d_taxonomy_GBIF_sapro.csv")
 # use taxonomy of present study
 d_gbif_full <- d_gbif_full |> 
@@ -128,12 +129,14 @@ d_gbif_full <- d_gbif_full |>
 # list of species to be analysed
 specieslist <- sel_species_sapro[sel_species_sapro %in% d_gbif_full$species_std] # no data for two species
 
-
+# butter around Europe (security margin for filtering)
 sf_europe_buff <- st_buffer(sf_europe, 20000)
 
+# species by species, calculate the temperature niche
 d_climatic_niche_sapro <- data.frame()
 for (sp_i in specieslist){
   
+  # restrict GBIF data to target species
   d_gbif <- d_gbif_full %>%
     filter(species_std == sp_i)
   
@@ -146,21 +149,22 @@ for (sp_i in specieslist){
   # exclude non-european observations
   sel <- st_intersects(sf_gbif, sf_europe_buff, sparse = T)
   sel <- which(unlist(lapply(sel, length)) > 0)
+  # select European observations
   sf_gbif <- sf_gbif[sel, ]
   
+  # spatial join of GBIF and temperature data (at CGRS grid)
   sf_gbif <- st_join(sf_gbif, sf_cgrs_europe)
   
   out <- sf_gbif %>%
     as.data.frame() %>%
     select(CGRSNAME, Tniche) %>%
+    # selection of CGRS grid cells, in which the species was obsewrved
     distinct() %>%
-    summarise(Tniche_mean = mean(Tniche, na.rm = T),
-              Tniche_sd = sd(Tniche, na.rm = T),
-              Tniche_q05 = quantile(Tniche, .05, na.rm = T),
-              Tniche_q95 = quantile(Tniche, .95, na.rm = T))
+    summarise(Tniche_mean = mean(Tniche, na.rm = T)) # temperature niche
   
   out$species_std <- sp_i
   
+  # export to joint dataframe
   if (class(out) == "data.frame"){
     d_climatic_niche_sapro <- d_climatic_niche_sapro %>%
       bind_rows(out)
@@ -180,6 +184,7 @@ d_climatic_niche_sapro <- d_climatic_niche_sapro %>%
 
 d_climatic_niche_butter <- readRDS("Data/Traits/RAW/Neff_et_al_2022_NatComms/d_climatic_niche.rds")
 d_climatic_niche_butter <- d_climatic_niche_butter |> 
+  # adjust taxonomy
   mutate(species = case_when(species == "Melitaea athalia aggr"~ "Melitaea athalia aggr.", 
                              species %in% c("Colias alfacariensis", "Colias hyale") ~ "Colias hyale aggr.",
                              species %in% c("Leptidea juvernica", "Leptidea sinapis") ~ "Leptidea sinapis aggr.",
@@ -202,10 +207,12 @@ d_std_sapro <- fread('Data/Traits/RAW/beetle_taxonomy.csv')
 
 d_traits_sapro <-
   d_traits_sapro_raw |> 
+  # standardise species names
   mutate(SpeciesID = paste(trimws(Genre), trimws(Espèce)),
          SpeciesID = ifelse(SpeciesID == "Abraeus globosus (=perpusillus)",
                             "Abraeus perpusillus", SpeciesID)) |> 
   left_join(d_std_sapro, by = c(SpeciesID = "Name_original")) |> 
+  # restrict to relevant data
   select(Name_std, Family, Genus, Species,
          Saproxylique, Saproxylique.facultatif, `Taille.(mm)`,
          Guildes.trophiques, Microhabitat, Taille.préférentielle.du.bois.mort,
@@ -221,6 +228,7 @@ d_traits_sapro <-
                                             "FeuRes [essences hôtes feuillues et résineuses]", `Groupe.d'essences.hôtes`),
          `Groupe.d'essences.hôtes` = ifelse(Name_std == "Ampedus pomorum aggr.",
                                             "Feu(Res) [essences hôtes surtout feuillues, parfois résineuses]", `Groupe.d'essences.hôtes`)) |> 
+  # summarise per species
   group_by(Name_std, Family, Genus, Species) |>
   summarise(across(`Taille.(mm)`, ~ mean(.)),
             across(c(Saproxylique, Saproxylique.facultatif,
@@ -252,15 +260,6 @@ d_traits_sapro <-
          diameter = Taille.préférentielle.du.bois.mort,
          microhabitat = Microhabitat,
          hosts = Essences.hôtes.préférentielles) |>
-  rowwise() |>
-  mutate(feeding_guild = paste(sort(c(ifelse(grepl("Zoo ", feeding_guild), "zoophagous", NA),
-                                      ifelse(grepl("Xyl ", feeding_guild), "xylophagous", NA),
-                                      ifelse(grepl("Sxy ", feeding_guild), "saproxylophagous", NA),
-                                      ifelse(grepl("Sap ", feeding_guild), "saporphagous", NA),
-                                      ifelse(grepl("Myc ", feeding_guild), "mycetophagous", NA),
-                                      ifelse(grepl("Rhizo ", feeding_guild), "rhiziphagous", NA))),
-                               collapse = "/")) |>
-  ungroup() |>
   mutate(hygrophilia = recode(hygrophilia,
                               "Meso [Mésophile/indifférent]" = "mesophilous",
                               "Xer [Xérophile]" = "xerophilous",
@@ -291,6 +290,7 @@ d_traits_sapro <-
                                n_specific == 3 ~ "oligotopic",
                                n_specific < 3 ~ "eurytopic")) |> 
   select(-n_specific) |> 
+  # join with temperature niche data
   full_join(d_climatic_niche_sapro, by = c("Name_std" = "species_std"), relationship = "one-to-one") |> 
   filter(Name_std %in% sel_species_sapro) |>  # Cis submicans was not included in the analyses (too few years)
   # categorize continuous traits
@@ -302,6 +302,7 @@ d_traits_sapro <-
 # food specialisation ----------------------------------------------------------.
 
 d_german_sl <- fread("Data/Traits/RAW/GermanSL_edit.csv") # plant name standardisation
+# monotypic plant genera
 v_monotypic <- c(Abies = "Abies alba",
                  Aesculus = "Aesculus hippocastanum",
                  Ailanthus = "Ailanthus altissima",
@@ -329,11 +330,14 @@ v_monotypic <- c(Abies = "Abies alba",
                  Viscum = "Viscum album")
 
 d_foodspec_sapro <- d_traits_sapro_raw |> 
+  # standardise beetle names
   mutate(SpeciesID = paste(trimws(Genre), trimws(Espèce)),
          SpeciesID = ifelse(SpeciesID == "Abraeus globosus (=perpusillus)",
                             "Abraeus perpusillus", SpeciesID)) |> 
   left_join(d_std_sapro, by = c(SpeciesID = "Name_original")) |> 
+  # restrict to species names and host plants
   select(Name_std, Hosts = Essences.hôtes.préférentielles) |>
+  # standardise host data
   mutate(Hosts = gsub(", ", ",", Hosts),
          Hosts = gsub("\\(aussi ", ",", Hosts),
          Hosts = gsub("\\*", "", Hosts),
@@ -341,7 +345,9 @@ d_foodspec_sapro <- d_traits_sapro_raw |>
          Hosts = gsub("Salix Populus", "Salix,Populus", Hosts),
          Hosts = gsub("\\)", "", Hosts),
          Hosts = trimws(Hosts)) |> 
+  # separate row for each host species
   separate_rows(Hosts, sep = ",") |> 
+  # standardise host plant names
   mutate(Hosts = trimws(Hosts),
          Hosts = gsub(" spp.", "", Hosts),
          Hosts = recode(Hosts,
@@ -365,28 +371,35 @@ d_foodspec_sapro <- d_traits_sapro_raw |>
                        "dendron", "spp.", "", 
                        "Prunus malus"),
          !is.na(Hosts)) |> 
+  # convert monotypic genera to species-level data
   rowwise() |> 
   mutate(Hosts = ifelse(Hosts %in% names(v_monotypic),
                         v_monotypic[Hosts], Hosts)) |> 
   ungroup() |> 
+  # join with plant standardisation DF
   left_join(d_german_sl |> select(Name_original, Name_std_host = Name_std, Rank, Family, Genus, Species), 
             by = c(Hosts = "Name_original")) |> 
+  # summarise number of host plant families, genera, etc. per beetle species
   group_by(Name_std) |> 
   summarise(n_family = n_distinct(Family),
             n_genus = n_distinct(Genus),
             n_species = n_distinct(Species),
             Hosts = paste(sort(unique(Hosts)), collapse = "/"),
             .groups = "drop") |> 
+  # categorise food specialisation
   mutate(food_spec = case_when(n_family > 1 ~ "polyphagous",
                                n_genus > 1 ~ "oligophagous",
                                n_species > 1 ~ "monophagous",
                                n_species == 1 ~ "monophagous")) |> 
+  # restrict to study species
   filter(Name_std %in% sel_species_sapro)  
 
+# add to trait data
 d_traits_sapro <- d_traits_sapro |> 
   full_join(d_foodspec_sapro |> select(Name_std, food_spec), 
             by = "Name_std", relationship = "one-to-one")
 
+# export data
 d_traits_sapro |> 
   select(Name_std, size_cat, stenotopy, food_spec, Tniche) |> 
   fwrite("Data/Traits/Traits_saproxylic_beetles.csv")
@@ -394,6 +407,7 @@ d_traits_sapro |>
 # other traits butterflies #####################################################
 ################################################################################.
 
+# butterfly name standardisation data frame
 d_std_butter <- fread('Data/Traits/RAW/butterfly_taxonomy.csv')
   
 # collect data from different sources (see manuscript)
@@ -408,6 +422,7 @@ d_traits_cook <- d_traits_cook |>
 # Klaiber et al (2017) data:
 d_traits_butter <- fread('Data/Traits/RAW/Fauna_Indicativa_Tagfalter_et_Zygaenidae2022.csv')
 
+# rearrange and standardise Klaiber et al data
 d_traits_butter <- d_traits_butter |> 
   mutate(Taxa.Unterart = ifelse(Taxa.Unterart == "", NA, Taxa.Unterart),
          SpeciesID = paste(Taxa.Gattung, Taxa.Art),
@@ -451,14 +466,16 @@ d_traits_butter <- d_traits_butter |>
   mutate(across(everything(), ~ ifelse(. == "NA", NA, .)),
          wing_length = as.numeric(wing_length)) |> 
   mutate(wing_length = ifelse(Name_std %in% c("Parnassius phoebus", "Apatura iris"), NA, wing_length)) |>  # apparent mistakes in data
+  # add Middleton data
   left_join(d_traits_middleton |> 
               group_by(Name_std) |> 
               summarise(wing_length_midd = mean((FoL_var_male_average + FoL_var_female_average) / 2,
                                                 na.rm = T),
                         .groups = "drop"),
             by = "Name_std", relationship = "many-to-one") |> 
-  mutate(wing_length = ifelse(is.na(wing_length), wing_length_midd, wing_length)) |> 
+  mutate(wing_length = ifelse(is.na(wing_length), wing_length_midd, wing_length)) |> # if wing length data missing, take it from Middleton
   select(-wing_length_midd) |> 
+  # add Cook data
   left_join(d_traits_cook |> 
               mutate(wing_length_cook = ifelse(Family == "Zygaenidae",
                                                (forewing_minimum + forewing_maximum) / 2,
@@ -467,17 +484,20 @@ d_traits_butter <- d_traits_butter |>
               summarise(wing_length_cook = mean(wing_length_cook, na.rm = T),
                         .groups = "drop"),
             by = "Name_std", relationship = "many-to-one") |> 
-  mutate(wing_length = ifelse(is.na(wing_length), wing_length_cook, wing_length)) |> 
+  mutate(wing_length = ifelse(is.na(wing_length), wing_length_cook, wing_length)) |>  # if wing length data still missing, take it from Cook
   select(-wing_length_cook) |> 
+  # add climatic niche data
   left_join(d_climatic_niche_butter, by = c("Name_std" = "species"),
             relationship = "many-to-one") |> 
   group_by(Name_std) |> 
   summarise(across(-SpeciesID,
                    ~ifelse(is.numeric(.), mean(.), paste(unique(.), collapse = "__")))) |> 
+  # one case where two subspecies have distinct stenotopy / food specialisation values
   mutate(stenotopy = recode(stenotopy, 
                             oligotopic__stenotopic = "stenotopic"), # Phengaris alcon rebeli more common
          food_spec = recode(food_spec,
                             "narrowly oligophagous__monophagous" = "monophagous")) |>  # Phengaris alcon rebeli more common
+  # category "narrowly oligophagous" merged into monophagous for this study (same approach as for beetles)
   mutate(food_spec = ifelse(food_spec == "narrowly oligophagous", "monophagous", food_spec)) |> 
   mutate((across(everything(), ~ ifelse(. == "NA", NA, .))))
 
@@ -487,6 +507,7 @@ d_traits_butter <- d_traits_butter |>
                               breaks = 3, labels = c("small", "medium", "large")),
          Tniche = cut(Tniche_mean, breaks = 3, labels = c("cold", "intermediate", "warm")))
 
+# export data
 d_traits_butter |>
   select(Name_std, size_cat, stenotopy, food_spec, Tniche, voltinism, hibernation) |> 
   fwrite("Data/Traits/Traits_butterflies.csv")

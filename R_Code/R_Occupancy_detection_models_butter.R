@@ -1,8 +1,11 @@
+# This script was run on a HPC cluster computer
+
 # Initialise system ############################################################
 ################################################################################.
 
 # R version 4.0.2
 
+# set system up
 rm(list = ls()); graphics.off()
 Sys.setlocale('LC_ALL','C.UTF-8')
 options(max.print = 500)
@@ -53,27 +56,28 @@ f_Rhat <- function(sims) {
 }
 
 
-source('R_Code/f_occ_det.R')
-stan_mod <- cmdstan_model('Stan_Code/Stan_occ_det_cmdstan.stan')
+source('R_Code/f_occ_det.R') # load function to run occupancy-detection models
+stan_mod <- cmdstan_model('Stan_Code/Stan_occ_det_cmdstan.stan') # load Stan model
 
-options(mc.cores = 4)
+options(mc.cores = 4) # 4 cores for 4 chains
 
 # information on the model run (from cluster)
 sp_index_i <- as.numeric(commandArgs(trailingOnly = TRUE)[1]) # species index
 iter <- as.numeric(commandArgs(trailingOnly = TRUE)[2]) # number of iterations to run
 
 
-d_records <- fread('Data/RAW_occdet/d_records_butter.csv')
+d_records <- fread('Data/RAW_occdet/d_records_butter.csv') # load records data
 
-sel_species <- read_lines("Data/splist_butter.txt")
+sel_species <- read_lines("Data/splist_butter.txt") # load list of selected species
 
-sp_i <- sel_species[sp_index_i]
+sp_i <- sel_species[sp_index_i] # species to be analysed in the present run
 
 # projects with restricted species focus
 d_rest_projects <- fread('Data/RAW_occdet/Projects_restricted_focus_butter.csv')
+# project with focus other than butterflies
 d_other_projects <- fread("Data/RAW_occdet/Projects_other_focus_butter.csv")
 
-# expert persons / projects
+# expert persons / projects (definition: see manuscript)
 d_experts_butter <- fread('Data/RAW_occdet/d_experts_butter.csv')
 d_expertprojs_butter <- fread('Data/RAW_occdet/d_expertprojs_butter.csv')
 
@@ -105,25 +109,29 @@ d_zones <- d_biogeo %>%
                        ifelse(grepl("CentralAlps", biogeo6),
                               "CentralAlps", biogeo6)))
 
+# site-year combinations to be analysed
 d_sites <- expand.grid(five_km2_ID = unique(d_records$five_km2_ID),
                        two_A = seq(min(d_records$two_A), max(d_records$two_A), 2)) %>% 
   arrange(five_km2_ID, two_A)
 
+# define data at visit level
 d_visits <-
-  d_cscf %>% 
-  mutate(observer = ifelse(PROJET == "", LEG, PROJET)) %>% 
+  d_records %>% 
+  mutate(observer = ifelse(PROJET == "", LEG, PROJET)) %>% # if from a project, take project name. Otherwise, private person
+  # number of visits per observer
   group_by(observer) %>% 
   mutate(n_visit = n_distinct(visit_ID)) %>% 
   ungroup() %>% 
+  # for projects with restricted focus, exclude the observations if the target species was not in the focus of the project
   left_join(d_rest_projects, by = 'PROJET') %>%
   rowwise() %>%
   filter((!Name_std %in% strsplit(focal_species, ' \\| ')[[1]]) |
            any(strsplit(focal_species, ' \\| ')[[1]] == sp_i)) %>%
   ungroup() %>%
   group_by(five_km2_ID, two_A, visit_ID) %>% 
-  summarise(pres = ifelse(any(Name_std == sp_i), 1, 0),
-            list_length = length(unique(Name_std)),
-            list_length_cat = cut(list_length, breaks = c(0, 1, 3, Inf),
+  summarise(pres = ifelse(any(Name_std == sp_i), 1, 0), # focal species recorded?
+            list_length = length(unique(Name_std)), # number of species observed in the visit
+            list_length_cat = cut(list_length, breaks = c(0, 1, 3, Inf), # convert to three-level factor
                                   labels = c('single', 'short', 'long')),
             # determine source category
             source = ifelse(sp_i %in% unlist(strsplit(focal_species, ' \\| ')),
@@ -135,8 +143,8 @@ d_visits <-
                                                  'Project'),
                                           ifelse(any(LEG %in% d_experts_butter$LEG),
                                                  'CitSc_expert', 'CitSc')))),
-            museum_record = as.numeric(all(MUS != "")),
-            observer = ifelse(unique(n_visit) >= 15, unique(observer), "OTHER"), 
+            museum_record = as.numeric(all(MUS != "")), # museum record?
+            observer = ifelse(unique(n_visit) >= 15, unique(observer), "OTHER"), # observers with 15 and more visits get their own random term level
             .groups = 'drop') %>% 
   mutate(five_km2_ID = as.factor(five_km2_ID),
          fact_two_A = as.factor(two_A),
@@ -188,24 +196,27 @@ print(paste('N sites =', nrow(d_sites), '| N visits =', nrow(d_visits)))
 # run MCMC chains ##############################################################
 ################################################################################.
 
-f_occ_det(d_sites = d_sites, d_visits = d_visits, 
+f_occ_det(d_sites = d_sites,
+          d_visits = d_visits, 
           formula_occ = ~ height_z + I(height_z^2) + (1 | biogeo12) + (1 | five_km2_ID),
           formula_det = ~ list_length_cat + source + museum_record + (1 | fact_two_A) + (1 | observer),
-          var_site = 'five_km2_ID', var_year = 'two_A', 
+          var_site = 'five_km2_ID', 
+          var_year = 'two_A', 
           var_presabs = 'pres',
           var_area = 'zone',
           stan_mod = stan_mod,
-          iter_warmup = floor(iter / 2), iter_sampling = iter - floor(iter / 2),
-          chains = 4,
-          output_dir = 'Output',
-          output_basename = gsub(' ', '_', sp_i))
+          iter_warmup = floor(iter / 2),  # number of warmup iterations
+          iter_sampling = iter - floor(iter / 2), # number of sampling iterations
+          chains = 4, # number of chains
+          output_dir = 'Output', # where output should be stored
+          output_basename = gsub(' ', '_', sp_i)) # how output should be named
 
 # post-sampling processing #####################################################
 ################################################################################.
 
 # move to enclosing folder
 
-dir.create(paste0('Output/Done/', gsub(' ', '_', sp_i)))
+dir.create(paste0('Output/Done/', gsub(' ', '_', sp_i))) # move to a new folder after finished
 
 system(paste0('mv Output/', gsub(' ', '_', sp_i), '-1.csv',
               ' Output/Done/', gsub(' ', '_', sp_i)))
@@ -228,11 +239,13 @@ d_sites %>%
 
 
 # extract parameter estimates and write to file --------------------------------
+# ------------------------------------------------------------------------------.
 
 files <- list.files(paste0('/home/neff/INSECT/Output/Done/', gsub(' ', '_', sp_i)),
                     full.names = T)
 files <- files[!grepl("SITEIDS_", files)]
 
+# read saved files in again
 fit <- read_cmdstan_csv(files,
                         variables = c('mu_o', 'alpha_year', 'sigma_a_year',
                                       'sigma_a_ro',
@@ -255,7 +268,7 @@ out1 <- lapply(fit$post_warmup_draws, function(x) x[, grepl(paste(paste0('^', pa
   rownames_to_column("var")
 
 names(out1)[-1] <- paste0('I', 1:(ncol(out1) - 1))
-fwrite(out1, paste0(dir, '/', gsub(' ', '_', sp_i), '/RAW_', gsub(' ', '_', sp_i), '.csv'))
+fwrite(out1, paste0(dir, '/', gsub(' ', '_', sp_i), '/RAW_', gsub(' ', '_', sp_i), '.csv')) # save estimates for these parameters
 
 # aggregate data per zone and two-year interval --------------------------------.
 
@@ -293,6 +306,7 @@ out_agg <- d_z_intmean_reg |>
             relationship = "one-to-one") |> 
   select(Name_std, two_A, zone, n_squares, everything())
 
+# export aggregated data
 fwrite(out_agg,
        paste0(dir_data, "Data/Occupancy_estimates/occ_means_1930_butter.csv"),
        append = T)
@@ -355,6 +369,6 @@ if (iter < 500) { # doesn't run for high numbers of iterations
     bind_rows(d_diag_zone) %>% 
     mutate(Name_std = sp_i)
   
-  fwrite(d_diag, paste0(dir, '/', gsub(' ', '_', sp_i), '/DIAGZ_', gsub(' ', '_', sp_i), '.csv'))
+  fwrite(d_diag, paste0(dir, '/', gsub(' ', '_', sp_i), '/DIAGZ_', gsub(' ', '_', sp_i), '.csv')) # save Rhat estimates
 }
 

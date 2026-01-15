@@ -22,6 +22,7 @@ select <- dplyr::select
 # set global parameters ########################################################
 ################################################################################.
 
+# vector of ordering and labels of biogeographic zones
 v_zones <- c(Jura = "Jura",
              Plateau = "Plateau", 
              NorthernAlps = "Northern Alps",
@@ -29,7 +30,7 @@ v_zones <- c(Jura = "Jura",
              SouthernAlps = "Southern Alps",
              HighAlps = "High Alps")
 
-
+# size of text in plots
 v_textsize <- c(plotlabel = 9,
                 axis.title = 8, axis.text = 7, 
                 legend.title = 8, legend.text = 7,
@@ -82,6 +83,7 @@ sf_area <- d_area |> #interpret as points
 # CALCULATE DRIVERS  -------------- ############################################
 ################################################################################.
 
+# two different intervals used in analyses (8 years is standard; 12 years for sensitivity analyses)
 length_interval <- 8 # years
 length_interval2 <- 12 # years
 
@@ -103,11 +105,14 @@ year_insect_start2 <-
 # Human population change ######################################################
 ################################################################################.
 
+# filter human population data
 d_pop <- d_censuses |> 
   filter(parameter == "human population")
 
 # deal with Jura ---------------------------------------------------------------.
+# canton of Jura only founded in 1979, before belonged to Bern
 
+# proportion of population of "old Bern" belonging to Jura in first year with Jura data
 d_prop_Jura <-
   d_pop |> 
   group_by(year) |> 
@@ -115,23 +120,25 @@ d_prop_Jura <-
             (value[canton == "Bern"] + value[canton == "Jura"])) |> 
   filter(year == 1971)
 
-
+# for years without Jura data, take that proportion to caluclate the Jura numbers
 d_pop_Jura <- d_pop |> 
   filter(canton == "Bern", year < 1971) |> 
   mutate(value = value * d_prop_Jura$prop_Jura,
          canton = "Jura")
 
+# add to overall data
 d_pop <- d_pop |> 
   bind_rows(d_pop_Jura) |> 
   group_by(year) |> 
   mutate(value = ifelse(canton == "Bern" & year < 1971,
                         value - value[canton == "Jura"],
                         value)) |> 
-  ungroup() 
+  ungroup()
 
 # distribute to biogeographic zones --------------------------------------------.
 
 sf_comb <-
+  # based on Arealstatistik in ~1985, check how buildings area is distributed across cantons
   sf_area |> 
   filter(LU85_10 == 100) |> # where buildings are 
   st_join(sf_cantons |> 
@@ -139,6 +146,7 @@ sf_comb <-
   st_join(sf_zones) |> 
   filter(!is.na(canton)) # some squares at edge of Switzerland
 
+# for each biogeographic zone, determine the proportion of populated hectares of each canton
 d_comb_smry <- sf_comb |> 
   as.data.frame() |> 
   group_by(canton, zone, in_cscf) |> 
@@ -148,6 +156,7 @@ d_comb_smry <- sf_comb |>
   mutate(perc = n_points / sum(n_points)) |> 
   ungroup()
 
+# based on the above proportion, allocate the population to the different zones
 d_pop_zone <-
   d_pop |> 
   left_join(d_comb_smry, by = "canton", relationship = "many-to-many") |> 
@@ -164,6 +173,7 @@ d_pop_zone <-
 
 # zonal summary ----------------------------------------------------------------.
 
+# fill empty years with simple interpolation
 d_pop_zone_inter <- expand_grid(year = seq(min(d_pop_zone$year), max(d_pop_zone$year), 1),
                                 zone = unique(d_pop_zone$zone)) |>   
   full_join(d_pop_zone, by = c("year", "zone")) %>%
@@ -171,46 +181,50 @@ d_pop_zone_inter <- expand_grid(year = seq(min(d_pop_zone$year), max(d_pop_zone$
   mutate(value = na.approx(value)) |> 
   ungroup()
 
-
+# linear models per 8yr-interval and zone
 d_LM <-
   d_pop_zone_inter |> 
   select(-c(value)) |> 
   left_join(d_pop_zone_inter |> 
               left_join(d_prop_zones, by = "zone") |> 
-              mutate(value_rel = value / (n * 25)) |> 
+              mutate(value_rel = value / (n * 25)) |> # convert from 5x5km squares to 1km2
               rename(year_end = year),
             by = "zone", relationship = "many-to-many") |> 
   filter(year %in% year_insect_start, # reduce to consecutive intervals (sharing always two observations because of double years for insects)
          year_end < year + length_interval & 
            year_end >= year) |>
   group_by(zone, year_start = year) %>% 
-  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2],
-            lm_intercept = lm(value_rel ~ year_end)$coefficients[1],
+  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2], # slope
+            lm_intercept = lm(value_rel ~ year_end)$coefficients[1], # intercept
             .groups = "drop") |> 
+  # based on linear models, make predictions for start and end of interval
   mutate(year_mean = year_start + (length_interval - 1)/2,
          pred_start = lm_intercept + year_start * lm_coef,
          pred_end = lm_intercept + (year_start + length_interval - 1) * lm_coef) 
 
+# linear models per 12yr-interval and zone
 d_LM2 <-
   d_pop_zone_inter |> 
   select(-c(value)) |> 
   left_join(d_pop_zone_inter |> 
               left_join(d_prop_zones, by = "zone") |> 
-              mutate(value_rel = value / (n * 25)) |> 
+              mutate(value_rel = value / (n * 25)) |>  # convert from 5x5km squares to 1km2
               rename(year_end = year),
             by = "zone", relationship = "many-to-many") |> 
   filter(year %in% year_insect_start2, # reduce to consecutive intervals (sharing always two observations because of double years for insects)
          year_end < year + length_interval2 & 
            year_end >= year) |>
   group_by(zone, year_start = year) %>% 
-  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2],
-            lm_intercept = lm(value_rel ~ year_end)$coefficients[1],
+  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2], # slope
+            lm_intercept = lm(value_rel ~ year_end)$coefficients[1], # intercept
             .groups = "drop") |> 
+  # based on linear models, make predictions for start and end of interval
   mutate(year_mean = year_start + (length_interval2 - 1)/2,
          pred_start = lm_intercept + year_start * lm_coef,
          pred_end = lm_intercept + (year_start + length_interval2 - 1) * lm_coef) 
 
-
+# select the relevant variables
+# initiate d_drivers to collect all the drivers data
 d_drivers <- d_LM |> 
   select(zone, year_mean, human_pop_change = lm_coef) |> 
   mutate(length_interval = length_interval) |> 
@@ -264,17 +278,21 @@ ggsave("Output/Figures/Drivers_human_pop.jpeg", width = 10, height = 5.5)
 # Forest: area #################################################################
 ################################################################################.
 
+# filter human population data
 d_forestarea <- d_censuses |> 
   filter(parameter == "forest: area")
 
 # deal with Jura ---------------------------------------------------------------.
+# canton of Jura only founded in 1979, before belonged to Bern
 
+# proportion of forest area of "old Bern" belonging to Jura in first year with Jura data
 d_prop_Jura <- d_forestarea |> 
-  group_by(forest_owner, year) |> 
+  group_by(forest_owner, year) |> # also separate by forest owner type (private or public)
   reframe(prop_Jura = value[canton == "Jura"]/
             (value[canton == "Bern"] + value[canton == "Jura"])) |> 
   filter(year == 1979)
 
+# for years without Jura data, take that proportion to caluclate the Jura numbers
 d_forestarea_Jura <- d_forestarea |> 
   filter(canton == "Bern", year < 1979) |> 
   left_join(d_prop_Jura |> select(-year),
@@ -283,7 +301,7 @@ d_forestarea_Jura <- d_forestarea |>
          canton = "Jura") |> 
   select(-prop_Jura)
 
-
+# add to overall data
 d_forestarea <- d_forestarea |> 
   bind_rows(d_forestarea_Jura) |> 
   group_by(year, forest_owner) |> 
@@ -295,6 +313,7 @@ d_forestarea <- d_forestarea |>
 # distribute to biogeographic zones --------------------------------------------.
 
 sf_comb <-
+  # based on Arealstatistik in ~1985, check how forest area is distributed across cantons
   sf_area |> 
   filter(LU85_10 == 300) |> # where forest is
   st_join(sf_cantons |> 
@@ -302,6 +321,7 @@ sf_comb <-
   st_join(sf_zones) |> 
   filter(!is.na(canton)) # some squares at edge of Switzerland
 
+# for each biogeographic zone, determine the proportion of forested hectares of each canton
 d_comb_smry <- sf_comb |> 
   as.data.frame() |> 
   group_by(canton, zone, in_cscf) |> 
@@ -311,8 +331,7 @@ d_comb_smry <- sf_comb |>
   mutate(perc = n_points / sum(n_points)) |> 
   ungroup()
 
-
-
+# based on the above proportion, allocate the forest area to the different zones
 d_forestarea_zone <- d_forestarea |> 
   left_join(d_comb_smry, by = "canton", relationship = "many-to-many") |> 
   filter(!is.na(perc)) |> # SBB, etc
@@ -321,7 +340,8 @@ d_forestarea_zone <- d_forestarea |>
   summarise(value = sum(value * perc),
             .groups = "drop")
 
-# deal with year without private data 
+# deal with years without private data (pre 1950)
+# approach: take proportion of first years with data and approximate for earlier years based on that proportion
 d_odds_priv <-
   d_forestarea_zone |> 
   group_by(zone, year) |> 
@@ -332,6 +352,7 @@ d_odds_priv <-
   summarise(odds_private = mean(odds_private),
             .groups = "drop")
 
+# approximation of private forest area before 1950
 d_addon_private <- d_forestarea_zone |> 
   filter(year < 1950) |> 
   left_join(d_odds_priv, by = "zone") |> 
@@ -350,7 +371,7 @@ d_forestarea_zone <- d_forestarea_zone |>
             .groups = "drop")
 
 
-# reconstruct for missing years 1951-1954, 1956, 1957, 1959
+# reconstruct for missing years 1951-1954, 1956, 1957, 1959 (interpolation approach)
 
 d_addon1 <- d_forestarea_zone |> 
   filter(year %in% c(1949, 1955)) |> # 1950 is somewhat of an outlier, thus take 1949 as starting year
@@ -373,7 +394,7 @@ d_addon3 <- d_forestarea_zone |>
                            value = predict(lm(value ~ year, data = .),
                                            data.frame(year = 1959))))
 
-
+# merge all the data
 d_forestarea_zone <- d_forestarea_zone |> 
   bind_rows(d_addon1) |>
   bind_rows(d_addon2) |>
@@ -381,12 +402,13 @@ d_forestarea_zone <- d_forestarea_zone |>
 
 # zonal summary ----------------------------------------------------------------.
 
+# linear models per 8yr-interval and zone
 d_LM <-
   d_forestarea_zone |> 
   select(-value) |> 
   left_join(d_forestarea_zone |> 
               left_join(d_prop_zones, by = "zone") |> 
-              mutate(value_rel = value / (n * 25)) |> 
+              mutate(value_rel = value / (n * 25)) |> # convert from 5x5km squares to 1km2
               rename(year_end = year),
             by = "zone", relationship = "many-to-many") |> 
   filter(year %in% year_insect_start, # reduce to consecutive intervals (sharing always two observations because of double years for insects)
@@ -394,19 +416,21 @@ d_LM <-
            year_end >= year) |>
   group_by(zone, year_start = year) %>% 
   mutate(year_end = year_end - year_start - (length_interval - 1) / 2) |> # center year such that intercept refers to estimated mean
-  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2],
-            lm_intercept = lm(value_rel ~ year_end)$coefficients[1],
+  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2], # slope
+            lm_intercept = lm(value_rel ~ year_end)$coefficients[1], # intercept
             .groups = "drop") |> 
+  # based on linear models, make predictions for start and end of interval
   mutate(year_mean = year_start + (length_interval - 1)/2,
          pred_start = lm_intercept - (length_interval - 1)/2 * lm_coef,
          pred_end = lm_intercept + (length_interval - 1)/2 * lm_coef) 
 
+# linear models per 12yr-interval and zone
 d_LM2 <-
   d_forestarea_zone |> 
   select(-value) |> 
   left_join(d_forestarea_zone |> 
               left_join(d_prop_zones, by = "zone") |> 
-              mutate(value_rel = value / (n * 25)) |> 
+              mutate(value_rel = value / (n * 25)) |> # convert from 5x5km squares to 1km2
               rename(year_end = year),
             by = "zone", relationship = "many-to-many") |> 
   filter(year %in% year_insect_start2, # reduce to consecutive intervals (sharing always two observations because of double years for insects)
@@ -414,13 +438,15 @@ d_LM2 <-
            year_end >= year) |>
   group_by(zone, year_start = year) %>% 
   mutate(year_end = year_end - year_start - (length_interval2 - 1) / 2) |> # center year such that intercept refers to estimated mean
-  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2],
-            lm_intercept = lm(value_rel ~ year_end)$coefficients[1],
+  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2], # slope
+            lm_intercept = lm(value_rel ~ year_end)$coefficients[1], # intercept
             .groups = "drop") |> 
+  # based on linear models, make predictions for start and end of interval
   mutate(year_mean = year_start + (length_interval2 - 1)/2,
          pred_start = lm_intercept - (length_interval2 - 1)/2 * lm_coef,
          pred_end = lm_intercept + (length_interval2 - 1)/2 * lm_coef) 
 
+# select the relevant variables
 d_drivers <-
   d_drivers |> 
   full_join(d_LM |> 
@@ -431,6 +457,7 @@ d_drivers <-
                           mutate(length_interval = length_interval2) |> 
                           select(zone, year_mean, length_interval, 
                                  forest_area_change = lm_coef)) |> 
+              # convert to reduce the effect of outliers
               mutate(forest_area_change = sign(forest_area_change) * 
                        (abs(forest_area_change) ^ (1/3))),
             by = c("zone", "year_mean", "length_interval"), relationship = "one-to-one") |>
@@ -485,12 +512,14 @@ ggsave("Output/Figures/Drivers_forest_area.jpeg", width = 10, height = 5.5)
 # Forest: wood harvest #########################################################
 ################################################################################.
 
-
+# filter wood harvest data
 d_woodharvest <- d_censuses |> 
   filter(parameter == "forest: wood harvest")
 
 # deal with Jura ---------------------------------------------------------------.
+# canton of Jura only founded in 1979, before belonged to Bern
 
+# proportion of wood harvest of "old Bern" belonging to Jura in first year with Jura data
 d_prop_Jura <-
   d_woodharvest |> 
   group_by(forest_owner, year) |> 
@@ -501,6 +530,7 @@ d_prop_Jura <-
   summarise(prop_Jura = mean(prop_Jura),
             .groups = "drop")
 
+# for years without Jura data, take that proportion to caluclate the Jura numbers
 d_woodharvest_Jura <- d_woodharvest |> 
   filter(canton == "Bern", year < 1979) |> 
   left_join(d_prop_Jura,
@@ -509,6 +539,7 @@ d_woodharvest_Jura <- d_woodharvest |>
          canton = "Jura") |> 
   select(-prop_Jura)
 
+# add to overall data
 d_woodharvest <- d_woodharvest |> 
   bind_rows(d_woodharvest_Jura) |> 
   group_by(year, forest_owner) |> 
@@ -520,6 +551,7 @@ d_woodharvest <- d_woodharvest |>
 # distribute to biogeographic zones --------------------------------------------.
 
 sf_comb <-
+  # based on Arealstatistik in ~1985, check how forest area is distributed across cantons
   sf_area |> 
   filter(LU85_10 == 300) |>  # where forest is
   st_join(sf_cantons |> 
@@ -527,6 +559,7 @@ sf_comb <-
   st_join(sf_zones) |> 
   filter(!is.na(canton)) # some squares at edge of Switzerland
 
+# for each biogeographic zone, determine the proportion of forested hectares of each canton
 d_comb_smry <- sf_comb |> 
   as.data.frame() |> 
   group_by(canton, zone, in_cscf) |> 
@@ -536,8 +569,7 @@ d_comb_smry <- sf_comb |>
   mutate(perc = n_points / sum(n_points)) |> 
   ungroup()
 
-# now distribute (holz) --------------------------------------------------------.
-
+# based on the above proportion, allocate the wood harvest to the different zones
 d_woodharvest_zone <-
   d_woodharvest |> 
   left_join(d_comb_smry, by = "canton", relationship = "many-to-many") |> 
@@ -547,8 +579,8 @@ d_woodharvest_zone <-
   summarise(value = sum(value * perc))
 
 
-# deal with year without private data 
-
+# deal with years without private data 
+# approach: take proportion of first years with data and approximate for earlier years based on that proportion
 d_woodharvest_odds_priv <-
   d_woodharvest_zone |> 
   group_by(zone, year) |> 
@@ -559,6 +591,7 @@ d_woodharvest_odds_priv <-
   summarise(odds_private = mean(odds_private),
             .groups = "drop")
 
+# approximation of private wood harvest before 1950
 d_addon_private <- d_woodharvest_zone |> 
   filter(year < 1950) |> 
   left_join(d_woodharvest_odds_priv, by = "zone") |> 
@@ -577,12 +610,13 @@ d_woodharvest_zone <- d_woodharvest_zone |>
 
 # zonal summary ----------------------------------------------------------------.
 
+# calculate wood harvest intensity by joining with forest-area data
 d_intensity_zone <- d_forestarea_zone |> 
   inner_join(d_woodharvest_zone, by = c("zone", "year"),
              suffix = c(".forestarea", ".woodharvest")) |> 
-  mutate(intensity = value.woodharvest / value.forestarea)
+  mutate(intensity = value.woodharvest / value.forestarea) # define intensity
 
-d_intensity_zone |> 
+d_intensity_zone |>
   ggplot(aes(x = year, y = intensity)) +
   geom_point() +
   facet_wrap(~ zone)
@@ -606,6 +640,7 @@ d_storm_outliers <-
   add_row(zone = "CentralAlps", year = 1990) |>  # Viviane
   add_row(zone = "CentralAlps", year = 1991) # Viviane
 
+# remove storm outliers for regressions
 d_intensity_zone_robust <- d_intensity_zone |> 
   left_join(d_storm_outliers |> 
               mutate(storm = T),
@@ -613,26 +648,29 @@ d_intensity_zone_robust <- d_intensity_zone |>
   filter(is.na(storm)) |> 
   select(-storm)
 
+# linear models per 8yr-interval and zone
 d_LM <-
   d_intensity_zone_robust |> 
   select(-c(value.forestarea, value.woodharvest, intensity)) |> 
   left_join(d_intensity_zone_robust |> 
               rename(year_end = year),
             by = "zone", relationship = "many-to-many") |> 
-  # trick to include missing data years
+  # trick to include missing data years (were excluded as storm events)
   mutate(year = ifelse(year == 1989 & zone %in% c("NorthernAlps", "HighAlps", "Plateau", "CentralAlps"), 
                        1990, year)) |> 
   filter(year %in% year_insect_start, # reduce to consecutive intervals (sharing always two observations because of double years for insects)
          year_end < year + length_interval & 
            year_end >= year) |>
   group_by(zone, year_start = year) %>% 
-  summarise(lm_coef = lm(intensity ~ year_end)$coefficients[2],
-            lm_intercept = lm(intensity ~ year_end)$coefficients[1],
+  summarise(lm_coef = lm(intensity ~ year_end)$coefficients[2], # slope
+            lm_intercept = lm(intensity ~ year_end)$coefficients[1], # coefficient
             .groups = "drop") |> 
+  # based on linear models, make predictions for start and end of interval
   mutate(year_mean = year_start + (length_interval - 1)/2,
          pred_start = lm_intercept + year_start * lm_coef,
          pred_end = lm_intercept + (year_start + length_interval - 1) * lm_coef) 
 
+# linear models per 12yr-interval and zone
 d_LM2 <-
   d_intensity_zone_robust |> 
   select(-c(value.forestarea, value.woodharvest, intensity)) |> 
@@ -648,14 +686,15 @@ d_LM2 <-
          year_end < year + length_interval2 & 
            year_end >= year) |>
   group_by(zone, year_start = year) %>% 
-  summarise(lm_coef = lm(intensity ~ year_end)$coefficients[2],
-            lm_intercept = lm(intensity ~ year_end)$coefficients[1],
+  summarise(lm_coef = lm(intensity ~ year_end)$coefficients[2], # slope
+            lm_intercept = lm(intensity ~ year_end)$coefficients[1], # intercept
             .groups = "drop") |> 
+  # based on linear models, make predictions for start and end of interval
   mutate(year_mean = year_start + (length_interval2 - 1)/2,
          pred_start = lm_intercept + year_start * lm_coef,
          pred_end = lm_intercept + (year_start + length_interval2 - 1) * lm_coef) 
 
-
+# define storm periods as those periods following large storm events (8-year intervals)
 d_stormperiods <- d_LM |> 
   left_join(d_storm_outliers, by = "zone",
             relationship = "many-to-many") |> 
@@ -671,6 +710,7 @@ d_stormperiods <- d_LM |>
   mutate(stormperiod = T) |> 
   distinct()
 
+# define storm periods as those periods following large storm events (12-year intervals)
 d_stormperiods2 <- d_LM2 |> 
   left_join(d_storm_outliers, by = "zone",
             relationship = "many-to-many") |> 
@@ -686,7 +726,7 @@ d_stormperiods2 <- d_LM2 |>
   mutate(stormperiod = T) |> 
   distinct()
 
-
+# select the relevant variables
 d_drivers <- d_drivers |> 
   full_join(d_LM |> 
               select(zone, year_mean, wood_harvest_int_change = lm_coef) |> 
@@ -753,11 +793,14 @@ ggsave("Output/Figures/Drivers_woodharvest.jpeg", width = 10, height = 5.5)
 # Tractors (mechanisation) #####################################################
 ################################################################################.
 
+# filter tractor data
 d_tractors <- d_censuses |> 
   filter(parameter == "tractors")
 
 # deal with Jura ---------------------------------------------------------------.
+# canton of Jura only founded in 1979, before belonged to Bern
 
+# proportion of tractors of "old Bern" belonging to Jura in first year with Jura data
 d_prop_Jura <-
   d_tractors |> 
   group_by(year) |> 
@@ -765,13 +808,13 @@ d_prop_Jura <-
             (value[canton == "Bern"] + value[canton == "Jura"])) |> 
   filter(year == min(year))
 
-
+# for years without Jura data, take that proportion to caluclate the Jura numbers
 d_tractors_Jura <- d_tractors |> 
   filter(canton == "Bern", year < 1980) |> 
   mutate(value = value * d_prop_Jura$prop_Jura, # assuming constant proportion since the very beginning...
          canton = "Jura")
 
-
+# add to overall data
 d_tractors <- d_tractors |> 
   bind_rows(d_tractors_Jura) |> 
   group_by(year) |> 
@@ -783,13 +826,15 @@ d_tractors <- d_tractors |>
 # distribute to biogeographic zones --------------------------------------------.
 
 sf_comb <-
+  # based on Arealstatistik in ~1985, check how agricultural areas mainly needing tractos are distributed across cantons
   sf_area |> 
-  filter(LU85_10 == 220) |> # agricultural areas in which tractors are used
+  filter(LU85_10 == 220) |> # agricultural areas in which tractors are mainly used
   st_join(sf_cantons |> 
             select(canton = NAME)) |> 
   st_join(sf_zones) |> 
   filter(!is.na(canton)) # some squares at edge of Switzerland
 
+# for each biogeographic zone, determine the proportion of tractor hectares of each canton
 d_comb_smry <- sf_comb |> 
   as.data.frame() |> 
   group_by(canton, zone, in_cscf) |> 
@@ -799,6 +844,7 @@ d_comb_smry <- sf_comb |>
   mutate(perc = n_points / sum(n_points)) |> 
   ungroup()
 
+# based on the above proportion, allocate the tractors to the different zones
 d_tractors_zone <-
   d_tractors |> 
   left_join(d_comb_smry, by = "canton", relationship = "many-to-many") |> 
@@ -809,6 +855,7 @@ d_tractors_zone <-
 
 # zonal summary ----------------------------------------------------------------.
 
+# fill empty years with simple interpolation
 d_tractors_zone_inter <- expand_grid(year = seq(min(d_tractors_zone$year), max(d_tractors_zone$year), 1),
                                      zone = unique(d_tractors_zone$zone)) |>   
   full_join(d_tractors_zone, by = c("year", "zone")) %>%
@@ -816,12 +863,13 @@ d_tractors_zone_inter <- expand_grid(year = seq(min(d_tractors_zone$year), max(d
   mutate(value = na.approx(value)) |> 
   ungroup()
 
+# linear models per 8yr-interval and zone
 d_LM <-
   d_tractors_zone_inter |> 
   select(-c(value)) |> 
   left_join(d_tractors_zone_inter |> 
               left_join(d_prop_zones, by = "zone") |> 
-              mutate(value_rel = value / (n * 25)) |> 
+              mutate(value_rel = value / (n * 25)) |> # convert from 5x5km squares to 1km2
               rename(year_end = year),
             by = "zone", relationship = "many-to-many") |> 
   filter(year %in% year_insect_start, # reduce to consecutive intervals (sharing always two observations because of double years for insects)
@@ -829,19 +877,21 @@ d_LM <-
            year_end >= year) |>
   group_by(zone, year_start = year) %>% 
   mutate(year_end = year_end - year_start - (length_interval - 1) / 2) |> # center year such that intercept refers to estimated mean
-  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2],
-            lm_intercept = lm(value_rel ~ year_end)$coefficients[1],
+  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2], # slope
+            lm_intercept = lm(value_rel ~ year_end)$coefficients[1], # intercept
             .groups = "drop") |> 
+  # based on linear models, make predictions for start and end of interval
   mutate(year_mean = year_start + (length_interval - 1)/2,
          pred_start = lm_intercept - (length_interval - 1) / 2 * lm_coef,
          pred_end = lm_intercept + (length_interval - 1) / 2 * lm_coef) 
 
+# linear models per 12yr-interval and zone
 d_LM2 <-
   d_tractors_zone_inter |> 
   select(-c(value)) |> 
   left_join(d_tractors_zone_inter |> 
               left_join(d_prop_zones, by = "zone") |> 
-              mutate(value_rel = value / (n * 25)) |> 
+              mutate(value_rel = value / (n * 25)) |> # convert from 5x5km squares to 1km2 
               rename(year_end = year),
             by = "zone", relationship = "many-to-many") |> 
   filter(year %in% year_insect_start2, # reduce to consecutive intervals (sharing always two observations because of double years for insects)
@@ -849,13 +899,15 @@ d_LM2 <-
            year_end >= year) |>
   group_by(zone, year_start = year) %>% 
   mutate(year_end = year_end - year_start - (length_interval2 - 1) / 2) |> # center year such that intercept refers to estimated mean
-  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2],
-            lm_intercept = lm(value_rel ~ year_end)$coefficients[1],
+  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2], # slope
+            lm_intercept = lm(value_rel ~ year_end)$coefficients[1], # interept
             .groups = "drop") |> 
+  # based on linear models, make predictions for start and end of interval
   mutate(year_mean = year_start + (length_interval2 - 1)/2,
          pred_start = lm_intercept - (length_interval - 1) / 2 * lm_coef,
          pred_end = lm_intercept + (length_interval - 1) / 2 * lm_coef) 
 
+# select the relevant variables
 d_drivers <-
   d_drivers |> 
   full_join(d_LM |> 
@@ -867,7 +919,7 @@ d_drivers <-
             by = c("zone", "year_mean", "length_interval"), relationship = "one-to-one") |> 
   full_join(d_LM |> 
               select(zone, year_mean) |> 
-              mutate(mechanisation_period = year_mean >= 1950 & year_mean <= 1990 &
+              mutate(mechanisation_period = year_mean >= 1950 & year_mean <= 1990 & # mechanisation period defined graphically
                        zone %in% c("Plateau", "NorthernAlps", "Jura"),
                      length_interval = length_interval) |> 
               bind_rows(d_LM2 |> 
@@ -922,23 +974,27 @@ ggsave("Output/Figures/Drivers_mechanisation.jpeg", width = 10, height = 5.5)
 # Grassland area ###############################################################
 ################################################################################.
 
+# filter grassland area data
 d_GL <- d_censuses |> 
   filter(parameter == "grassland area")
 
 # deal with Jura ---------------------------------------------------------------.
+# canton of Jura only founded in 1979, before belonged to Bern
+
+# proportion of grasslands of "old Bern" belonging to Jura in first year with Jura data
 d_prop_Jura <- d_GL |> 
   filter(year == 1975,
          canton %in% c("Bern", "Jura")) |> 
   reframe(prop_Jura = value[canton == "Jura"]/
             (value[canton == "Bern"] + value[canton == "Jura"]))
 
-
+# for years without Jura data, take that proportion to caluclate the Jura numbers
 d_GL_Jura <- d_GL |> 
   filter(canton == "Bern", year < 1975) |> 
   mutate(value = value * d_prop_Jura$prop_Jura, # assuming constant proportion since the very beginning...
          canton = "Jura")
 
-
+# add to overall data
 d_GL <- d_GL |> 
   bind_rows(d_GL_Jura) |> 
   group_by(year) |> 
@@ -950,6 +1006,7 @@ d_GL <- d_GL |>
 # distribute to biogeographic zones --------------------------------------------.
 
 sf_comb <-
+  # based on Arealstatistik in ~1985, check how grassland area is distributed across cantons
   sf_area |> 
   filter(LU85_10 == 220) |> # categories containing grasslands (temporary and permanent)
   st_join(sf_cantons |> 
@@ -957,7 +1014,7 @@ sf_comb <-
   st_join(sf_zones) |> 
   filter(!is.na(canton)) # some squares at edge of Switzerland
 
-
+# for each biogeographic zone, determine the proportion of grassland hectare of each canton
 d_comb_smry <- sf_comb |> 
   as.data.frame() |> 
   group_by(canton, zone, in_cscf) |> 
@@ -967,6 +1024,7 @@ d_comb_smry <- sf_comb |>
   mutate(perc = n_points / sum(n_points)) |> 
   ungroup()
 
+# based on the above proportion, allocate the grassland area to the different zones
 d_GL_zone <-
   d_GL |> 
   left_join(d_comb_smry, by = "canton", relationship = "many-to-many") |> 
@@ -985,7 +1043,9 @@ d_GL_zone_inter <- expand_grid(year = seq(min(d_GL_zone$year), max(d_GL_zone$yea
 
 
 # add summering pastures -------------------------------------------------------.
+# based on Arealstatistik data
 
+# extract summering pastures data from Arealstatistik
 d_summering_lt <-  sf_area |>
   filter(LU85_10 %in% c(240) |
            LU97_10 %in% c(240) |
@@ -1003,6 +1063,7 @@ d_summering_lt <-  sf_area |>
                names_pattern = "(.*)_(.*)",
                names_to = c(".value", "repetition"))
 
+# calculate hectares per zone
 d_summering_smry <- d_summering_lt |> 
   filter(in_cscf, LU == 240) |> 
   group_by(zone, repetition) |> 
@@ -1010,7 +1071,7 @@ d_summering_smry <- d_summering_lt |>
             hectares = n(),
             .groups = "drop")
 
-# interpolate
+# interpolate missing years
 d_sommerung_zone_inter <- d_GL_zone_inter |> 
   select(zone, year) |> 
   full_join(d_summering_smry,
@@ -1030,6 +1091,7 @@ d_sommerung_zone_inter <- d_GL_zone_inter |>
   filter(is.na(repetition)) |> 
   select(-repetition)
 
+# combine the two data sources
 d_GL_zone_inter_comb <- d_GL_zone_inter |> 
   mutate(type = "BFS") |> 
   bind_rows(d_sommerung_zone_inter |> 
@@ -1038,6 +1100,7 @@ d_GL_zone_inter_comb <- d_GL_zone_inter |>
 
 # zonal summary ----------------------------------------------------------------.
 
+# linear models per 8yr-interval and zone
 d_LM <-
   d_GL_zone_inter_comb |> 
   select(zone, year) |> 
@@ -1047,7 +1110,7 @@ d_LM <-
               summarise(value = sum(value),
                         .groups = "drop") |> 
               left_join(d_prop_zones, by = "zone") |> 
-              mutate(value_rel = value / (n  * 25)) |> 
+              mutate(value_rel = value / (n  * 25)) |> # convert from 5x5km squares to 1km2
               rename(year_end = year),
             by = "zone", relationship = "many-to-many") |> 
   filter(year %in% year_insect_start, # reduce to consecutive intervals (sharing always two observations because of double years for insects)
@@ -1055,13 +1118,15 @@ d_LM <-
            year_end >= year) |>
   group_by(zone, year_start = year) %>% 
   mutate(year_end = year_end - year_start - (length_interval - 1) / 2) |> # center year such that intercept refers to estimated mean
-  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2],
-            lm_intercept = lm(value_rel ~ year_end)$coefficients[1],
+  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2], # slope
+            lm_intercept = lm(value_rel ~ year_end)$coefficients[1], # intercept
             .groups = "drop") |> 
+  # based on linear models, make predictions for start and end of interval
   mutate(year_mean = year_start + (length_interval - 1)/2,
          pred_start = lm_intercept - (length_interval - 1) / 2 * lm_coef,
          pred_end = lm_intercept + (length_interval - 1) / 2 * lm_coef) 
 
+# linear models per 12yr-interval and zone
 d_LM2 <-
   d_GL_zone_inter_comb |> 
   select(zone, year) |> 
@@ -1071,7 +1136,7 @@ d_LM2 <-
               summarise(value = sum(value),
                         .groups = "drop") |> 
               left_join(d_prop_zones, by = "zone") |> 
-              mutate(value_rel = value / (n  * 25)) |> 
+              mutate(value_rel = value / (n  * 25)) |> # convert from 5x5km squares to 1km2
               rename(year_end = year),
             by = "zone", relationship = "many-to-many") |> 
   filter(year %in% year_insect_start2, # reduce to consecutive intervals (sharing always two observations because of double years for insects)
@@ -1079,13 +1144,15 @@ d_LM2 <-
            year_end >= year) |>
   group_by(zone, year_start = year) %>% 
   mutate(year_end = year_end - year_start - (length_interval2 - 1) / 2) |> # center year such that intercept refers to estimated mean
-  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2],
-            lm_intercept = lm(value_rel ~ year_end)$coefficients[1],
+  summarise(lm_coef = lm(value_rel ~ year_end)$coefficients[2], # slope
+            lm_intercept = lm(value_rel ~ year_end)$coefficients[1], # intercept
             .groups = "drop") |> 
+  # based on linear models, make predictions for start and end of interval
   mutate(year_mean = year_start + (length_interval2 - 1)/2,
          pred_start = lm_intercept - (length_interval2 - 1) / 2 * lm_coef,
          pred_end = lm_intercept + (length_interval2 - 1) / 2 * lm_coef) 
 
+# select the relevant variables
 d_drivers <- d_drivers |> 
   full_join(d_LM |> 
               mutate(length_interval = length_interval) |> 
@@ -1167,9 +1234,11 @@ ggsave("Output/Figures/Drivers_grassland_area.jpeg", width = 10, height = 5.5)
 # Average yearly temperature ###################################################
 ################################################################################.
 
+# based on gridded data from MeteoSwiss
+
 # read data --------------------------------------------------------------------.
 
-# extract longitude & latitude
+# extract longitude & latitude (WGS84)
 lon <- ncvar_get(nc_temperature, "lon")
 lat <- ncvar_get(nc_temperature, "lat", verbose = F)
 
@@ -1200,18 +1269,19 @@ d_trec <- parLapplyLB(cl, 1:length(t), f_append) |>
   bind_rows()
 stopCluster(cl)
 
-
+# reconstructed average temperature data per month and year
 d_trec <- d_trec %>% 
   mutate(month = month(date),
          year = year(date))
 
-# add LV95n coordinates
+# add LV95 coordinates
 d_trec[, c("CX", "CY")] <- sf_project(from = "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0",
                                       to = "+proj=somerc +lat_0=46.95240555555556 +lon_0=7.439583333333333 +k_0=1 +x_0=2600000 +y_0=1200000 +ellps=bessel +towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs",
                                       cbind(d_trec$lon, d_trec$lat))
 
 # Summarise data per year and zone ---------------------------------------------.
 
+# aggregate per year
 d_trec_agg <- d_trec %>% 
   mutate(n_days = days_in_month(date)) %>% 
   group_by(lon, lat, CX, CY, year) %>% 
@@ -1220,12 +1290,12 @@ d_trec_agg <- d_trec %>%
 
 
 # create sf polygons
-radius_x <- 1600 / 2
-radius_y <- 2320 / 2
+radius_x <- 1600 / 2 # 1/2 E-W-extension of polygon (in m)
+radius_y <- 2320 / 2 # 1/2 N-S-extension of polygon (in m)
 radius_x <- mean(unique(diff(lon))) / 2
 radius_y <- mean(unique(diff(lat))) / 2
 
-
+# convert part of temperature data to spatial data
 sf_trec_agg_sub <-
   d_trec_agg %>% 
   filter(year == 1901) %>% # dummy year
@@ -1249,8 +1319,10 @@ sf_trec_agg_sub <-
 st_crs(sf_trec_agg_sub) <- 4326 # define coordinate reference system
 sf_trec_agg_sub$Trec_m <- d_trec_agg$Trec_m[d_trec_agg$year == 1901]
 
+# convert to LV95 coordinate system
 sf_trec_agg_sub <- st_transform(sf_trec_agg_sub, crs = 2056)
 
+# join with biogeographic zones
 sf_trec_agg_sub <- sf_trec_agg_sub %>%
   st_join(sf_zones %>%
             group_by(zone, in_cscf) %>%
@@ -1265,6 +1337,7 @@ d_trec_agg <- d_trec_agg %>%
               select(ID, zone, in_cscf),
             by = "ID") 
 
+# summarise per zone
 d_trec_zone_yr <- d_trec_agg %>% 
   filter(!is.na(zone),
          in_cscf) %>% 
@@ -1274,11 +1347,13 @@ d_trec_zone_yr <- d_trec_agg %>%
 
 # zonal summary ----------------------------------------------------------------.
 
+# linear models per 8yr-interval and zone
 d_LM <-
   d_trec_zone_yr |>
   select(-c(Trec_m)) |> 
   left_join(d_trec_zone_yr |> 
               group_by(zone) |> 
+              # convert to anomaly
               mutate(Trec_m_anom = Trec_m - mean(Trec_m[year %in% 1901:2000])) |> 
               ungroup() |> 
               rename(year_end = year),
@@ -1288,18 +1363,21 @@ d_LM <-
            year_end >= year) |>
   group_by(zone, year_start = year) %>% 
   mutate(year_end = year_end - year_start - (length_interval - 1) / 2) |> # center year such that intercept refers to estimated mean
-  summarise(lm_coef = lm(Trec_m_anom ~ year_end)$coefficients[2],
-            lm_intercept = lm(Trec_m_anom ~ year_end)$coefficients[1],
+  summarise(lm_coef = lm(Trec_m_anom ~ year_end)$coefficients[2], # slope
+            lm_intercept = lm(Trec_m_anom ~ year_end)$coefficients[1], # intercept
             .groups = "drop") |> 
+  # based on linear models, make predictions for start and end of interval
   mutate(year_mean = year_start + (length_interval - 1)/2,
          pred_start = lm_intercept -+ (length_interval - 1) / 2 * lm_coef,
          pred_end = lm_intercept + (length_interval - 1) / 2 * lm_coef) 
 
+# linear models per 12yr-interval and zone
 d_LM2 <-
   d_trec_zone_yr |> 
   select(-c(Trec_m)) |> 
   left_join(d_trec_zone_yr |> 
               group_by(zone) |> 
+              # convert to anomaly
               mutate(Trec_m_anom = Trec_m - mean(Trec_m[year %in% 1901:2000])) |> 
               ungroup() |> 
               rename(year_end = year),
@@ -1309,13 +1387,15 @@ d_LM2 <-
            year_end >= year) |>
   group_by(zone, year_start = year) %>% 
   mutate(year_end = year_end - year_start - (length_interval2 - 1) / 2) |> # center year such that intercept refers to estimated mean
-  summarise(lm_coef = lm(Trec_m_anom ~ year_end)$coefficients[2],
-            lm_intercept = lm(Trec_m_anom ~ year_end)$coefficients[1],
+  summarise(lm_coef = lm(Trec_m_anom ~ year_end)$coefficients[2], # slope
+            lm_intercept = lm(Trec_m_anom ~ year_end)$coefficients[1], # intercept
             .groups = "drop") |> 
+  # based on linear models, make predictions for start and end of interval
   mutate(year_mean = year_start + (length_interval2 - 1)/2,
          pred_start = lm_intercept - (length_interval2 - 1) / 2 * lm_coef,
          pred_end = lm_intercept + (length_interval2 - 1) / 2 * lm_coef) 
 
+# select the relevant variables
 d_drivers <- d_drivers |> 
   full_join(d_LM |> 
               mutate(length_interval = length_interval) |> 
@@ -1376,10 +1456,12 @@ ggsave("Output/Figures/Drivers_temperature.jpeg", width = 10, height = 5.5)
 # EXPORT DRIVERS DATASET  ------- ##############################################
 ################################################################################.
 
+# final, combined driver dataset
 d_drivers <- d_drivers |>
   select(zone, year_mean, length_interval, everything()) |> 
   arrange(zone, year_mean, length_interval)
   
+# export data
 d_drivers |> 
   fwrite("Data/Drivers/Drivers.csv")
 
