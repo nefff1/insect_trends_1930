@@ -81,33 +81,8 @@ d_other_projects <- fread("Data/RAW_occdet/Projects_other_focus_sapro.csv")
 d_experts_sapro <- fread('Data/RAW_occdet/d_experts_sapro.csv')
 d_expertprojs_sapro <- fread('Data/RAW_occdet/d_expertprojs_sapro.csv')
 
-# biogeographic regions data
-d_biogeo <- fread('Data/RAW_occdet/Biogeographische_regionen_five_km2.csv')
-d_biogeo <- d_biogeo %>% 
-  mutate(five_km2_ID = paste(CX_five_km2, CY_five_km2, sep = ' / ')) |> 
-  mutate(biogeo6 = recode(biogeo6,
-                       Jura = "Jura",
-                       Mittelland = "Plateau",
-                       Alpennordflanke = "NorthernAlps",
-                       "Westliche Zentralalpen" = "WesternCentralAlps",
-                       "Östliche Zentralalpen" = "EasternCentralAlps",
-                       Alpensüdflanke = "SouthernAlps"))
-
-# height above sealevel data
-d_height <- fread('Data/RAW_occdet/mean_height_km2.csv')
-d_height <- d_height %>% 
-  mutate(CX_five_km2 = floor(CX_km2 / 5000) * 5000,
-         CY_five_km2 = floor(CY_km2 / 5000) * 5000) %>% 
-  group_by(CX_five_km2, CY_five_km2) %>% 
-  summarise(height = sum(Z * n) / sum(n),
-            .groups = "drop") %>% 
-  mutate(five_km2_ID = paste(CX_five_km2, CY_five_km2, sep = ' / '))
-
-d_zones <- d_biogeo %>% 
-  left_join(d_height, by = c("CX_five_km2", "CY_five_km2", "five_km2_ID")) %>% 
-  mutate(zone = ifelse(height > 1400 | biogeo12 == "Engadin", "HighAlps",
-                       ifelse(grepl("CentralAlps", biogeo6),
-                              "CentralAlps", biogeo6)))
+# biogeographic zones data (including height)
+d_zones <- fread('Data/Other/biogeographic_zones.csv')
 
 # site-year combinations to be analysed
 d_sites <- expand.grid(five_km2_ID = unique(d_records$five_km2_ID),
@@ -137,17 +112,14 @@ d_visits <-
             # determine source category
             source = ifelse(sp_i %in% unlist(strsplit(focal_species, ' \\| ')),
                             'Project_targeted',
-                            ifelse(any(PROJET %in% c('LR_COL',
-                                                     'LR_COL_privé',
-                                                     'LR_COL_contrôle',
-                                                     'LR_COL_recherches_ciblées',
-                                                     'LR_COL_hors_échantillon')), 
+                            ifelse(any(PROJET %in% c('P_012', 'P_039', 'P_090')), 
                                    'Project_RL',
                                    ifelse(any(PROJET != '') & !any(PROJET %in% d_other_projects$PROJET),
                                           ifelse(PROJET %in% d_expertprojs_sapro$PROJET, 'Project expert',
                                                  'Project'),
                                           ifelse(any(LEG %in% d_experts_sapro$LEG),
                                                  'CitSc_expert', 'CitSc')))),
+            # determine sampling method
             method = ifelse(all(MET_SMRY == "" | is.na(MET_SMRY)), 
                             "no trap", unique(MET_SMRY)),
             method = factor(method, levels = c("no trap", "Flight", "Light", 
@@ -170,12 +142,9 @@ d_visits <-
 ################################################################################.
 
 d_sites <- d_sites %>% 
-  left_join(d_biogeo %>% 
-              select(five_km2_ID, biogeo6, biogeo12), by = 'five_km2_ID') %>% 
+  left_join(d_zones |> select(-height), by = c("five_km2_ID")) %>% 
+  mutate_at(vars(biogeo12, zone), as.factor) %>% 
   left_join(d_zones %>% 
-              select(five_km2_ID, zone), by = c("five_km2_ID")) %>% 
-  mutate_at(vars(biogeo6, biogeo12, zone), as.factor) %>% 
-  left_join(d_height %>% 
               filter(five_km2_ID %in% d_sites$five_km2_ID) %>% 
               select(five_km2_ID, height) %>% 
               mutate(height_z = as.numeric(scale(height))), by = 'five_km2_ID')
@@ -293,7 +262,7 @@ d_mcmc_z <- out1 %>%
 d_sites <- d_sites %>% 
   select(five_km2_ID, two_A) %>% 
   left_join(d_zones %>% 
-              select(five_km2_ID, biogeo6, biogeo12, zone), by = "five_km2_ID")
+              select(five_km2_ID, biogeo12, zone), by = "five_km2_ID")
 
 d_z_intmean_reg <- data.frame()
 for (i in unique(d_sites$two_A)){

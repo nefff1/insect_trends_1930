@@ -4,7 +4,6 @@
 .RData
 .Ruserdata
 Data/Occupancy_estimates
-Data/RAW_occdet
 Data/tmp
 Data/Drivers/RAW
 Data/Drivers/TrecabsM1901_ch02.lonlat_190101010000_202112010000.nc

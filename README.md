@@ -118,6 +118,62 @@ The sources of external data are indicated in the code files. Occupancy estimate
 
 -   **Other/GBIF/d_taxonomy_GBIF_sapro.csv**: File used to match GBIF taxon keys to taxonomic names used in the present analyses. Used during temperature niche calculation of saproxylic beetles.
 
+-   **Other/biogeographic_zones.csv**: File containing information on the biogeographic zone at the level of 5x5 km squares. Also includes condensed data on the fine-scale biogeographic region (raw data available from <https://data.geo.admin.ch>, see 'ch.bafu.biogeographische_regionen') and the average elevation (raw data from the Federal Office of Topography swisstopo, avilable from <https://data.geo.admin.ch>, see 'ch.swisstopo.swissalti3d'). Contains the following columns:
+
+    -   five_km2_ID: ID of the 5x5 km squares. Based on Swiss coordinate system LV95 (EPSG: 2056)
+
+    -   zone: Name of the biogeographic zone of the respective square
+
+    -   biogeo12: Name of the fine-scale biogeographic region (12 levels; in German). Based on data from the Federal Office for Environment (<https://data.geo.admin.ch>, see 'ch.bafu.biogeographische_regionen')
+
+    -   height: Average height of the 5x5 km square in meters above sea level. Based on data from the Federal Office of Topography swisstopo (<https://data.geo.admin.ch>, see 'ch.swisstopo.swissalti3d')
+
+The folder *Data/RAW_occdet* contains data necessary to reproduce the occupancy-detection models. These data are not necessary to reproduce the main analyses, as the aggregated occupancy estimates are also available. The folder contains the following files:
+
+-   **d_expertprojs_butter.csv**: File containing the project IDs of projects that recorded butterflies, which were defined as *expert projects* (see manuscript for definition)
+
+-   **d_expertprojs_sapro.csv**: File containing the project IDs of projects that recorded saproxylic beetles, which were defined as *expert projects* (see manuscript for definition)
+
+-   **d_expertprojs_butter.csv**: File containing the observer IDs of people that recorded butterflies, which were defined as *experts* (see manuscript for definition)
+
+-   **d_expertprojs_sapro.csv**: File containing the observer IDs of people that recorded saproxylic beetles, which were defined as *experts* (see manuscript for definition)
+
+-   **d_records_butter.csv**: Butterfly species records, which were extracted from the info fauna database and used in occupancy-detection models. The data are anonymised and only contain records included in the modelling. The file contains the following columns:
+
+    -   Name_std: species name
+
+    -   five_km2_ID: ID of the 5x5 km square, in which the species was recorded. Corresponds to longitude and latitude in the Swiss coordinate system (LV95; EPSG: 2056)
+
+    -   two_A: two-year interval of the record. Always denotes the first year of the interval.
+
+    -   MUS: Denotes whether the recorded specimen was digitized from a museum collection ("Yes")
+
+    -   visit_ID: anonymised ID of the visit (see manuscript for definition)
+
+    -   LEG: anonymised ID of the observer
+
+    -   PROJET: anonymised ID of the project. If the record was not part of a project, the field is empty
+
+-   **d_records_sapro.csv**: (Saproxylic) beetle species records, which were extracted from the info fauna database and used in occupancy-detection models. The data are anonymised and only contain records included in the modelling. The file contains the following columns:
+
+    -   Name_std: species name
+
+    -   Tax_group: Larger taxonomic group to which the species was attributed
+
+    -   five_km2_ID: ID of the 5x5 km square, in which the species was recorded. Corresponds to longitude and latitude in the Swiss coordinate system (LV95; EPSG: 2056)
+
+    -   two_A: two-year interval of the record. Always denotes the first year of the interval.
+
+    -   MET_SMRY: Sampling method used. One of "Flight", "Light", "Ground", "Emergence", "Other traps". If no trap was used (or trap type was not specified), the field is empty
+
+    -   MUS: Denotes whether the recorded specimen was digitized from a museum collection ("Yes")
+
+    -   visit_ID: anonymised ID of the visit (see manuscript for definition)
+
+    -   LEG: anonymised ID of the observer
+
+    -   PROJET: anonymised ID of the project. If the record was not part of a project, the field is empty
+
 ***License***
 
 *The research data in the folder 'Data' is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). For the codes in the folders 'R_Code' and 'Stan_Code', the supplied LICENSE applies.*
