@@ -62,8 +62,8 @@ d_traitsel_comb <- data.frame(trait = "Size",
                               traitvalue = c("small", "medium", "large"),
                               traitvalue_short = c("small", "medium", "large")) |> 
   bind_rows(data.frame(trait = "Habitat specialisation",
-                       traitvalue = c("stenotopic", "oligotopic", "eurytopic"),
-                       traitvalue_short = c("stenotopic", "oligotopic", "eurytopic"))) |> 
+                       traitvalue = c("high specialisation", "moderate specialisation", "low specialisation"),
+                       traitvalue_short = c("high", "moderate", "low"))) |> 
   bind_rows(data.frame(trait = "Food specialisation",
                        traitvalue = c("monophagous", "oligophagous", "polyphagous"),
                        traitvalue_short = c("monoph.", "oligoph.", "polyph."))) |> 
@@ -82,8 +82,8 @@ d_traitsel_butter <-  data.frame(trait = "Overw. stage",
                        traitvalue = c("small", "medium", "large"),
                        traitvalue_short = c("small", "medium", "large"))) |> 
   bind_rows(data.frame(trait = "Habitat specialisation",
-                       traitvalue = c("stenotopic", "oligotopic", "eurytopic"),
-                       traitvalue_short = c("stenotopic", "oligotopic", "eurytopic"))) |> 
+                       traitvalue = c("high specialisation", "moderate specialisation", "low specialisation"),
+                       traitvalue_short = c("high", "moderate", "low"))) |> 
   bind_rows(data.frame(trait = "Food specialisation",
                        traitvalue = c("monophagous", "oligophagous", "polyphagous"),
                        traitvalue_short = c("monoph.", "oligoph.", "polyph."))) |> 
@@ -665,9 +665,17 @@ splist_butter <- read_lines("Data/splist_butter.txt")
 
 # species traits ---------------------------------------------------------------.
 
-d_traits_sapro <- fread("Data/Traits/Traits_saproxylic_beetles.csv")
+d_traits_sapro <- fread("Data/Traits/Traits_saproxylic_beetles.csv") |> 
+  mutate(stenotopy = recode(stenotopy,
+                            stenotopic = "high specialisation",
+                            oligotopic = "moderate specialisation",
+                            eurytopic = "low specialisation"))
 d_traits_butter <- fread("Data/Traits/Traits_butterflies.csv") |> 
-  mutate(voltinism = as.character(voltinism))
+  mutate(voltinism = as.character(voltinism),
+         stenotopy = recode(stenotopy,
+                            stenotopic = "high specialisation",
+                            oligotopic = "moderate specialisation",
+                            eurytopic = "low specialisation"))
 
 # mean occupancy values --------------------------------------------------------.
 
@@ -1127,7 +1135,6 @@ saveRDS(d_lm_ric_interval_reg_sapro, "Data/tmp/sric_agg/d_lm_ric_interval_reg_sa
 saveRDS(d_lm_ric_interval2_reg_sapro, "Data/tmp/sric_agg/d_lm_ric_interval2_reg_sapro.rds")
 saveRDS(d_lm_ric_interval_trait_reg_sapro, "Data/tmp/sric_agg/d_lm_ric_interval_trait_reg_sapro.rds")
 saveRDS(d_lm_ric_interval2_trait_reg_sapro, "Data/tmp/sric_agg/d_lm_ric_interval2_trait_reg_sapro.rds")
-
 
 # butterflies ------------------------------------------------------------------.
 
@@ -2298,7 +2305,7 @@ for (trait_i in c("Size", "Habitat specialisation", "Food specialisation", # loo
     geom_ribbon(aes(ymin = lower, ymax = upper, fill = traitvalue),
                 alpha = .5, col = NA) +
     # mean line
-    geom_line(size = 1) +
+    geom_line(linewidth = 1) +
     # bar plot inlet at the right side of the plot
     geom_area(data = d_sric_target |>
                 group_by(group, two_A) |>
