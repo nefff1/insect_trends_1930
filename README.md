@@ -6,7 +6,7 @@ This repository contains codes and additional data which were used in the analys
 
 Neff F, Bollmann K, Chittaro Y, Gossner MM, Herzog F, Korner-Nievergelt F, Litsios G, Martínez-Núñez C, Moretti M, Rey E, Sanchez A, Knop E. **Ninety-year trends reveal sharpest insect declines mid-20th century.**
 
-In this study, based on species records data, mean annual occupancy was estimated for 595 saproxylic beetle species and 216 buttefly species (Papilionoidea, incl. Zygaenidae moths) in six biogeographic zones in Switzerland. The data cover the years 1930–2021 (occupancy estimates were determined per two-year interval; 1930/31, 1932/33, etc.). Trends in saproxylic beetle and butterfly species richness were reconstructed for the biogeographic zones and the whole of Switzerland. Richness trends were related to a set of environmental variables (land use, climate) and to species traits (size, specialisation, temperature niche).
+In this study, based on species records data, mean annual occupancy was estimated for 595 saproxylic beetle species and 216 buttefly species (Papilionoidea, incl. Zygaenidae moths) in six biozones in Switzerland. The data cover the years 1930–2021 (occupancy estimates were determined per two-year interval; 1930/31, 1932/33, etc.). Trends in saproxylic beetle and butterfly species richness were reconstructed for the biozones and the whole of Switzerland. Richness trends were related to a set of environmental variables (land use, climate) and to species traits (size, specialisation, temperature niche).
 
 The following R code files are included in the folder *R_Code*:
 
@@ -60,9 +60,9 @@ The sources of external data are indicated in the code files. Occupancy estimate
 
     -   hibernation: overwintering stage (categorical: egg, egg/larva, larva, larva/pupa, pupa, adult)
 
--   **Drivers/Drivers.csv**: Processed data on environmental variables. Each row contains data for one biogeographic zone and interval. Contains the following columns:
+-   **Drivers/Drivers.csv**: Processed data on environmental variables. Each row contains data for one biozone and interval. Contains the following columns:
 
-    -   zone: biogeographic zone
+    -   zone: biozone
 
     -   year_mean: Mean year of the interval
 
@@ -118,11 +118,11 @@ The sources of external data are indicated in the code files. Occupancy estimate
 
 -   **Other/GBIF/d_taxonomy_GBIF_sapro.csv**: File used to match GBIF taxon keys to taxonomic names used in the present analyses. Used during temperature niche calculation of saproxylic beetles.
 
--   **Other/biogeographic_zones.csv**: File containing information on the biogeographic zone at the level of 5x5 km squares. Also includes condensed data on the fine-scale biogeographic region (raw data available from <https://data.geo.admin.ch>, see 'ch.bafu.biogeographische_regionen') and the average elevation (raw data from the Federal Office of Topography swisstopo, avilable from <https://data.geo.admin.ch>, see 'ch.swisstopo.swissalti3d'). Contains the following columns:
+-   **Other/biogeographic_zones.csv**: File containing information on the biozone at the level of 5x5 km squares. Also includes condensed data on the fine-scale biogeographic region (raw data available from <https://data.geo.admin.ch>, see 'ch.bafu.biogeographische_regionen') and the average elevation (raw data from the Federal Office of Topography swisstopo, avilable from <https://data.geo.admin.ch>, see 'ch.swisstopo.swissalti3d'). Contains the following columns:
 
     -   five_km2_ID: ID of the 5x5 km squares. Based on Swiss coordinate system LV95 (EPSG: 2056)
 
-    -   zone: Name of the biogeographic zone of the respective square
+    -   zone: Name of the biozone of the respective square
 
     -   biogeo12: Name of the fine-scale biogeographic region (12 levels; in German). Based on data from the Federal Office for Environment (<https://data.geo.admin.ch>, see 'ch.bafu.biogeographische_regionen')
 

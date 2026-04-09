@@ -81,7 +81,7 @@ d_other_projects <- fread("Data/RAW_occdet/Projects_other_focus_sapro.csv")
 d_experts_sapro <- fread('Data/RAW_occdet/d_experts_sapro.csv')
 d_expertprojs_sapro <- fread('Data/RAW_occdet/d_expertprojs_sapro.csv')
 
-# biogeographic zones data (including height)
+# biozones data (including height)
 d_zones <- fread('Data/Other/biogeographic_zones.csv')
 
 # site-year combinations to be analysed

@@ -22,7 +22,7 @@ select <- dplyr::select
 # set global parameters ########################################################
 ################################################################################.
 
-# vector of ordering and labels of biogeographic zones
+# vector of ordering and labels of biozones
 v_zones <- c(Jura = "Jura",
              Plateau = "Plateau", 
              NorthernAlps = "Northern Alps",
@@ -47,7 +47,7 @@ d_censuses <- read.csv2("Data/Drivers/Census_data_raw.csv")
 # reconstructed gridded temperature data from MeteoSwiss (www.meteoswiss.admin.ch; TrecabsM)
 nc_temperature <- nc_open("Data/Drivers/TrecabsM1901_ch02.lonlat_190101010000_202112010000.nc")
 
-# biogeographic zones ----------------------------------------------------------.
+# biozones ---------------------------------------------------------------------.
 # derived from elevation data and biogeographic regions of Switzerland
 # both are available form https://data.geo.admin.ch (ch.bafu.biogeographische_regionen, ch.swisstopo.swissalti3d)
 sf_zones <- st_read("Data/Other/biogeographic_zones.gpkg")
@@ -135,7 +135,7 @@ d_pop <- d_pop |>
                         value)) |> 
   ungroup()
 
-# distribute to biogeographic zones --------------------------------------------.
+# distribute to biozones -------------------------------------------------------.
 
 sf_comb <-
   # based on Arealstatistik in ~1985, check how buildings area is distributed across cantons
@@ -146,7 +146,7 @@ sf_comb <-
   st_join(sf_zones) |> 
   filter(!is.na(canton)) # some squares at edge of Switzerland
 
-# for each biogeographic zone, determine the proportion of populated hectares of each canton
+# for each biozone, determine the proportion of populated hectares of each canton
 d_comb_smry <- sf_comb |> 
   as.data.frame() |> 
   group_by(canton, zone, in_cscf) |> 
@@ -310,7 +310,7 @@ d_forestarea <- d_forestarea |>
                         value)) |> 
   ungroup() 
 
-# distribute to biogeographic zones --------------------------------------------.
+# distribute to biozones -------------------------------------------------------.
 
 sf_comb <-
   # based on Arealstatistik in ~1985, check how forest area is distributed across cantons
@@ -321,7 +321,7 @@ sf_comb <-
   st_join(sf_zones) |> 
   filter(!is.na(canton)) # some squares at edge of Switzerland
 
-# for each biogeographic zone, determine the proportion of forested hectares of each canton
+# for each biozone, determine the proportion of forested hectares of each canton
 d_comb_smry <- sf_comb |> 
   as.data.frame() |> 
   group_by(canton, zone, in_cscf) |> 
@@ -548,7 +548,7 @@ d_woodharvest <- d_woodharvest |>
                         value)) |> 
   ungroup() 
 
-# distribute to biogeographic zones --------------------------------------------.
+# distribute to biozones -------------------------------------------------------.
 
 sf_comb <-
   # based on Arealstatistik in ~1985, check how forest area is distributed across cantons
@@ -559,7 +559,7 @@ sf_comb <-
   st_join(sf_zones) |> 
   filter(!is.na(canton)) # some squares at edge of Switzerland
 
-# for each biogeographic zone, determine the proportion of forested hectares of each canton
+# for each biozone, determine the proportion of forested hectares of each canton
 d_comb_smry <- sf_comb |> 
   as.data.frame() |> 
   group_by(canton, zone, in_cscf) |> 
@@ -823,7 +823,7 @@ d_tractors <- d_tractors |>
                         value)) |> 
   ungroup() 
 
-# distribute to biogeographic zones --------------------------------------------.
+# distribute to biozones -------------------------------------------------------.
 
 sf_comb <-
   # based on Arealstatistik in ~1985, check how agricultural areas mainly needing tractos are distributed across cantons
@@ -834,7 +834,7 @@ sf_comb <-
   st_join(sf_zones) |> 
   filter(!is.na(canton)) # some squares at edge of Switzerland
 
-# for each biogeographic zone, determine the proportion of tractor hectares of each canton
+# for each biozone, determine the proportion of tractor hectares of each canton
 d_comb_smry <- sf_comb |> 
   as.data.frame() |> 
   group_by(canton, zone, in_cscf) |> 
@@ -1003,7 +1003,7 @@ d_GL <- d_GL |>
                         value)) |> 
   ungroup() 
 
-# distribute to biogeographic zones --------------------------------------------.
+# distribute to biozones -------------------------------------------------------.
 
 sf_comb <-
   # based on Arealstatistik in ~1985, check how grassland area is distributed across cantons
@@ -1014,7 +1014,7 @@ sf_comb <-
   st_join(sf_zones) |> 
   filter(!is.na(canton)) # some squares at edge of Switzerland
 
-# for each biogeographic zone, determine the proportion of grassland hectare of each canton
+# for each biozone, determine the proportion of grassland hectare of each canton
 d_comb_smry <- sf_comb |> 
   as.data.frame() |> 
   group_by(canton, zone, in_cscf) |> 
@@ -1322,7 +1322,7 @@ sf_trec_agg_sub$Trec_m <- d_trec_agg$Trec_m[d_trec_agg$year == 1901]
 # convert to LV95 coordinate system
 sf_trec_agg_sub <- st_transform(sf_trec_agg_sub, crs = 2056)
 
-# join with biogeographic zones
+# join with biozones
 sf_trec_agg_sub <- sf_trec_agg_sub %>%
   st_join(sf_zones %>%
             group_by(zone, in_cscf) %>%

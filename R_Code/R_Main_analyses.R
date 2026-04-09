@@ -8,7 +8,7 @@
 ################################################################################.
 
 library(data.table) #1.15.4
-library(tidyverse); theme_set(theme_classic()) #2.0.0
+library(tidyverse) #2.0.0
 library(parallel)
 library(bayestestR) #0.16.0
 library(DHARMa) #0.4.6
@@ -18,6 +18,8 @@ library(ggpubr) #0.6.0
 library(cowplot) #1.1.3
 library(grid)
 
+options(mc.cores = parallel::detectCores())
+
 # set global parameters ########################################################
 ################################################################################.
 
@@ -25,7 +27,11 @@ library(grid)
 v_groupcols <- c(Sapro = "#043565", Butter = "#EB4B98")
 v_grouplabels <- c(Sapro = "Saproxylic beetles", Butter = "Butterflies")
 
-# names and order of biogeographic zones
+v_colours_traits_3 <- c("#6494AA", "#E9B872", "#A63D40")
+v_colours_traits_4 <- c("#6494AA", "#E9B872", "#A63D40", "#151515")
+v_colours_traits_5 <- c("#6494AA", "#90A959", "#E9B872", "#A63D40", "#151515")
+
+# names and order of biozones
 v_zones <- c(Jura = "Jura",
              Plateau = "Plateau", 
              NorthernAlps = "Northern Alps",
@@ -126,11 +132,20 @@ length_interval <- 8 # years (standard length)
 length_interval2 <- 12 # years (for sensitivity analyses)
 
 # text size (for plotting)
-v_textsize <- c(plotlabel = 9,
-                axis.title = 8, axis.text = 7, 
-                legend.title = 8, legend.text = 7,
-                additional.text = 6) 
+v_textsize <- c(plotlabel = 7, strip.title = 7,
+                axis.title = 6, axis.text = 5, 
+                legend.title = 6, legend.text = 5) 
 
+# set global theme for plotting
+theme_set(
+  theme_classic() +
+    theme(
+      plot.background = element_rect(fill = "transparent", colour = NA),
+      panel.background = element_rect(fill = "transparent", colour = NA),
+      legend.background = element_rect(fill = "transparent", colour = NA),
+      legend.box.background = element_rect(fill = "transparent", colour = NA)
+    )
+)
 
 # define functions #############################################################
 ################################################################################.
@@ -1670,13 +1685,13 @@ pgrid <-
               distinct() |> 
               filter(trait %in% unique(trait)[seq(1, 9, 2)]),
             inherit.aes = F,
-            xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, fill = "grey90") +
+            xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, fill = "grey92") +
   geom_rect(data = function(x) x |> 
               select(trait, var) |> 
               distinct() |> 
               filter(trait %in% unique(trait)[seq(2, 10, 2)]),
             inherit.aes = F,
-            xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, fill = "grey75") +
+            xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, fill = "grey82") +
   # add border for overall plot
   geom_rect(data = function(x) x |> 
               select(trait, var) |> 
@@ -1704,8 +1719,8 @@ pgrid <-
   # plot adjustments
   scale_linetype_manual(values = c(cont. = 1, factor = 11)) +
   scale_y_continuous(guide = guide_axis(position = "right")) +
-  scale_colour_manual(values = RColorBrewer::brewer.pal(3, "Dark2")) +
-  scale_fill_manual(values = RColorBrewer::brewer.pal(3, "Dark2")) +
+  scale_colour_manual(values = v_colours_traits_3) +
+  scale_fill_manual(values = v_colours_traits_3) +
   # facetting
   facet_grid(trait ~ var, scales = "free", switch = "both",
              labeller = as_labeller(v_labeller)) +
@@ -1716,8 +1731,8 @@ pgrid <-
         axis.title.y = element_text(size = v_textsize["axis.title"]),
         axis.text = element_text(size = v_textsize["axis.text"]),
         axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
-        strip.text.y = element_text(size = v_textsize["axis.title"]),
-        strip.text.x = element_text(size = v_textsize["axis.title"],
+        strip.text.y = element_text(size = v_textsize["strip.title"]),
+        strip.text.x = element_text(size = v_textsize["strip.title"],
                                     angle = 90, vjust = .5, hjust = 1),
         plot.margin = margin(0, 0, 0, 0, "pt"),
         strip.placement = "outside",
@@ -1731,14 +1746,15 @@ gt$widths[8] <- .7 * gt$widths[8]
 
 # export plot
 cairo_pdf(paste0("Output/Figures/lm_ric_mod_trait_sapro_", sel_interval, "yrs.pdf"),
-          width = 180 / 25.4, height = 170 / 25.4, fallback_resolution = 400) #170mm is max height
+          width = 180 / 25.4, height = 170 / 25.4, fallback_resolution = 400, #170mm is max height
+          bg = "transparent") 
 grid.draw(gt)
 
 # add legend insets
 for (i in seq_len(n_distinct(l_plotsdata_sapro$rangedata$trait))){
   trait_i <- unique((l_plotsdata_sapro$rangedata$trait))[i]
   
-  fill_i <- ifelse(i %% 2 == 0, "grey75", "grey90")
+  fill_i <- ifelse(i %% 2 == 0, "grey82", "grey92")
   
   p_inset <-
     d_traitsel_comb |> 
@@ -1747,7 +1763,7 @@ for (i in seq_len(n_distinct(l_plotsdata_sapro$rangedata$trait))){
     ggplot(aes(colour = traitvalue_short, x = 1, y = 1)) +
     geom_line(size = 1, group = 1) +
     theme_void() +
-    scale_colour_manual(values = RColorBrewer::brewer.pal(3, "Dark2"), name = "") +
+    scale_colour_manual(values = v_colours_traits_3, name = "") +
     theme(legend.position = "inside",
           legend.position.inside = c(0, 1),
           legend.justification.inside = c(0, .67),
@@ -1758,7 +1774,7 @@ for (i in seq_len(n_distinct(l_plotsdata_sapro$rangedata$trait))){
           legend.text = element_text(size = v_textsize["legend.text"]))
   
   
-  inset_vp <- viewport(x = 0.085, y = .972 - (i - 1)/4.72, width = 0.092, height = 0.05)
+  inset_vp <- viewport(x = 0.074, y = .969 - (i - 1)/4.60, width = 0.072, height = 0.05)
   pushViewport(inset_vp)
   inset_grob <- ggplotGrob(p_inset)
   grid.draw(inset_grob)
@@ -1847,13 +1863,13 @@ pgrid <-
               distinct() |> 
               filter(trait %in% unique(trait)[seq(1, 9, 2)]),
             inherit.aes = F,
-            xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, fill = "grey90") +
+            xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, fill = "grey92") +
   geom_rect(data = function(x) x |> 
               select(trait, var) |> 
               distinct() |> 
               filter(trait %in% unique(trait)[seq(2, 10, 2)]),
             inherit.aes = F,
-            xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, fill = "grey75") +
+            xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, fill = "grey82") +
   # add border for overall plot
   geom_rect(data = function(x) x |> 
               select(trait, var) |> 
@@ -1881,8 +1897,8 @@ pgrid <-
   # plot adjustments
   scale_linetype_manual(values = c(cont. = 1, factor = 11)) +
   scale_y_continuous(guide = guide_axis(position = "right")) +
-  scale_colour_manual(values = RColorBrewer::brewer.pal(3, "Dark2")) +
-  scale_fill_manual(values = RColorBrewer::brewer.pal(3, "Dark2")) +
+  scale_colour_manual(values = v_colours_traits_3) +
+  scale_fill_manual(values = v_colours_traits_3) +
   # facetting
   facet_grid(trait ~ var, scales = "free", switch = "both",
              labeller = as_labeller(v_labeller)) +
@@ -1893,8 +1909,8 @@ pgrid <-
         axis.title.y = element_text(size = v_textsize["axis.title"]),
         axis.text = element_text(size = v_textsize["axis.text"]),
         axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
-        strip.text.y = element_text(size = v_textsize["axis.title"]),
-        strip.text.x = element_text(size = v_textsize["axis.title"],
+        strip.text.y = element_text(size = v_textsize["strip.title"]),
+        strip.text.x = element_text(size = v_textsize["strip.title"],
                                     angle = 90, vjust = .5, hjust = 1),
         plot.margin = margin(0, 0, 0, 0, "pt"),
         strip.placement = "outside",
@@ -1908,14 +1924,15 @@ gt$widths[8] <- .7 * gt$widths[8]
 
 # export plot
 cairo_pdf(paste0("Output/Figures/lm_ric_mod_trait_butter_", sel_interval, "yrs.pdf"),
-          width = 180 / 25.4, height = 170 / 25.4, fallback_resolution = 400) #170mm is max height
+          width = 180 / 25.4, height = 170 / 25.4, fallback_resolution = 400, #170mm is max height
+          bg = "transparent") 
 grid.draw(gt)
 
 # add legend insets
 for (i in seq_len(n_distinct(l_plotsdata_butter$rangedata$trait))){
   trait_i <- unique((l_plotsdata_butter$rangedata$trait))[i]
   
-  fill_i <- ifelse(i %% 2 == 0, "grey75", "grey90")
+  fill_i <- ifelse(i %% 2 == 0, "grey82", "grey92")
   
   p_inset <-
     d_traitsel_comb |> 
@@ -1924,7 +1941,7 @@ for (i in seq_len(n_distinct(l_plotsdata_butter$rangedata$trait))){
     ggplot(aes(colour = traitvalue_short, x = 1, y = 1)) +
     geom_line(size = 1, group = 1) +
     theme_void() +
-    scale_colour_manual(values = RColorBrewer::brewer.pal(3, "Dark2"), name = "") +
+    scale_colour_manual(values = v_colours_traits_3, name = "") +
     theme(legend.position = "inside",
           legend.position.inside = c(0, 1),
           legend.justification.inside = c(0, .67),
@@ -1935,7 +1952,7 @@ for (i in seq_len(n_distinct(l_plotsdata_butter$rangedata$trait))){
           legend.text = element_text(size = v_textsize["legend.text"]))
   
   
-  inset_vp <- viewport(x = 0.087, y = .972 - (i - 1)/4.72, width = 0.095, height = 0.05)
+  inset_vp <- viewport(x = 0.074, y = .969 - (i - 1)/4.60, width = 0.072, height = 0.05)
   pushViewport(inset_vp)
   inset_grob <- ggplotGrob(p_inset)
   grid.draw(inset_grob)
@@ -2156,7 +2173,7 @@ f_pred_overall("butter", "after_storm")
 # richness trajectories ########################################################
 ################################################################################.
 
-# richness trajectories for both insect groups and for whole of Switzerland as well as the different biogeographic zones
+# richness trajectories for both insect groups and for whole of Switzerland as well as the different biozones
 
 d_ric_mean_sapro %>% 
   mutate(group = "Sapro") %>% 
@@ -2211,7 +2228,7 @@ d_ric_mean_sapro %>%
   coord_cartesian(xlim = c(1930, 2020)) +
   theme(legend.position = "top",
         legend.background = element_rect(fill = "grey80"),
-        legend.box.margin = margin(-8, 0, -7, 0),
+        legend.box.margin = margin(0, 0, -7, 0),
         legend.key.size = unit(3, "mm"),
         legend.key.spacing.x = unit(13, "mm"),
         axis.title = element_text(size = v_textsize["axis.title"]),
@@ -2221,7 +2238,7 @@ d_ric_mean_sapro %>%
                                                     t = 1.1, b = 1,
                                                     unit = "mm")),
         legend.text = element_text(size = v_textsize["legend.text"]),
-        strip.text = element_text(size = v_textsize["axis.title"]),
+        strip.text = element_text(size = v_textsize["strip.title"]),
         axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggsave("Output/Figures/sric_trend.pdf", 
@@ -2320,8 +2337,8 @@ for (trait_i in c("Size", "Habitat specialisation", "Food specialisation", # loo
              y = -.05,  yend = -.05) +
     annotate(geom = "segment", x = 2020 + spacing_bar - 2.5, xend = Inf, 
              y = -.05,  yend = -.05) +
-    scale_colour_brewer(palette = "Dark2", name = NULL)+
-    scale_fill_brewer(palette = "Dark2", name = NULL)  +
+    scale_colour_manual(values = v_colours_traits_3, name = NULL)+
+    scale_fill_manual(values = v_colours_traits_3, name = NULL)  +
     xlab("Year") +
     ylab("Rel. richness (%)") +
     # breaks for y axis which were determined above
@@ -2348,7 +2365,7 @@ for (trait_i in c("Size", "Habitat specialisation", "Food specialisation", # loo
           axis.title = element_text(size = v_textsize["axis.title"]),
           axis.text = element_text(size = v_textsize["axis.text"]),
           legend.text = element_text(size = v_textsize["legend.text"]),
-          strip.text = element_text(size = v_textsize["axis.title"]),
+          strip.text = element_text(size = v_textsize["strip.title"]),
           axis.text.x = element_text(angle = 45, hjust = 1))
 }
 # only include x axis title and text in the lowest plot
@@ -2360,18 +2377,18 @@ l_plots_sric_trait[c(1:3)] <- lapply(l_plots_sric_trait[c(1:3)], function(x) x +
 plot_grid(plotlist = l_plots_sric_trait,
           ncol = 1, align = "v",
           rel_heights = c(1, 1, 1, 
-                          ((170-13.4)/4+13.4) / ((170-13.4)/4)), # 1.34 cm is the height of title and axis text (x)
+                          ((166-10.4)/4+10.4) / ((166-10.4)/4)), # 1.04 cm is the height of title and axis text (x)
           labels = letters[1:4],
           label_size = v_textsize["plotlabel"]) + 
   # draw vertical separation lines between panels
-  draw_line(x = c(0.4, 0.4), y = c(0.085, 0.085 + 0.17), size = .75) +
-  draw_line(x = c(0.4, 0.4), y = c(0.085 + 0.232, 0.085 + 0.232 + 0.17), size = .75)  +
-  draw_line(x = c(0.4, 0.4), y = c(0.085 + 0.232 * 2, 0.085 + 0.232 * 2 + 0.17), size = .75) +
-  draw_line(x = c(0.4, 0.4), y = c(0.085 + 0.232 * 3, 0.085 + 0.232 * 3 + 0.17), size = .75) 
+  draw_line(x = c(0.42, 0.42), y = c(0.071, 0.071 + 0.17), size = .65) +
+  draw_line(x = c(0.42, 0.42), y = c(0.071 + 0.235, 0.071 + 0.235 + 0.17), size = .65)  +
+  draw_line(x = c(0.42, 0.42), y = c(0.071 + 0.235 * 2, 0.071 + 0.235 * 2 + 0.17), size = .65) +
+  draw_line(x = c(0.42, 0.42), y = c(0.071 + 0.235 * 3, 0.071 + 0.235 * 3 + 0.17), size = .65) 
 
 # save figure
 ggsave("Output/Figures/sric_trend_trait_both.pdf", 
-       width = 90, height = 170, unit = "mm", dpi = 400)
+       width = 88, height = 166, unit = "mm", dpi = 400)
 
 # additional traits (supplement) -----------------------------------------------.
 
@@ -2421,7 +2438,7 @@ for (trait_i in c("hibernation", "voltinism")){ # loop through the two traits
     geom_ribbon(aes(ymin = lower, ymax = upper, fill = traitvalue),
                 alpha = .5, col = NA) +
     # mean line
-    geom_line(size = 1) +
+    geom_line(size = 0.75) +
     # bar plot inlets
     geom_area(data = d_ric_trait_mean_butter %>% 
                 filter(trait == trait_i,
@@ -2443,8 +2460,6 @@ for (trait_i in c("hibernation", "voltinism")){ # loop through the two traits
              y = -.05,  yend = -.05) +
     annotate(geom = "segment", x = 2026.5, xend = Inf, 
              y = -.05,  yend = -.05) +
-    scale_colour_brewer(palette = "Dark2", name = NULL)+
-    scale_fill_brewer(palette = "Dark2", name = NULL)  +
     xlab("Year") +
     ylab("Rel. richness (%)") +
     # breaks for y axis which were determined above
@@ -2464,13 +2479,23 @@ for (trait_i in c("hibernation", "voltinism")){ # loop through the two traits
           legend.background = element_rect(fill = "grey80"),
           panel.spacing = unit(3, "mm"),
           legend.key.size = unit(3, "mm"),
-          legend.box.margin = margin(-10, -8, -10, -7),
+          legend.box.margin = margin(-5, -8, 0, -7),
           axis.title = element_text(size = v_textsize["axis.title"]),
           axis.text = element_text(size = v_textsize["axis.text"]),
           legend.title = element_text(size = v_textsize["legend.title"]),
           legend.text = element_text(size = v_textsize["legend.text"]),
-          strip.text = element_text(size = v_textsize["axis.title"]),
+          strip.text = element_text(size = v_textsize["strip.title"]),
           axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  if (n_distinct(d_plot$traitvalue) == 4){
+    p <- p + 
+      scale_colour_manual(values = v_colours_traits_4, name = NULL)+
+      scale_fill_manual(values = v_colours_traits_4, name = NULL) 
+  } else if (n_distinct(d_plot$traitvalue) == 5){
+    p <- p + 
+      scale_colour_manual(values = v_colours_traits_5, name = NULL)+
+      scale_fill_manual(values = v_colours_traits_5, name = NULL)
+  }
   
   # define number of rows in the fill legend
   if (nlevels(d_plot$traitvalue) > 4){
@@ -2497,8 +2522,8 @@ plot_grid(plotlist = l_plots_sric_trait_butter_suppl_sel,
           label_size = v_textsize["plotlabel"])
 
 # save figure
-ggsave("Output/Figures/sric_trend_trait_butter_suppl_sel.jpeg", 
-       width = 90, height = 70, unit = "mm", dpi = 400)
+ggsave("Output/Figures/sric_trend_trait_butter_suppl_sel.pdf", 
+       width = 88, height = 75, unit = "mm", dpi = 400)
 
 # overall driver models ########################################################
 ################################################################################.
@@ -2536,13 +2561,14 @@ p1 <-
         axis.title.y = element_blank(),
         axis.title = element_text(size = v_textsize["axis.title"]),
         axis.text = element_text(size = v_textsize["axis.text"]),
-        strip.text = element_text(size = v_textsize["axis.title"])) +
+        strip.text = element_text(size = v_textsize["strip.title"])) +
   labs(x = paste0("Species richness trend change\n(percentage point change per ",
                   sel_interval, " years)"))
 
 # save figure
 cairo_pdf(paste0("Output/Figures/lm_ric_mod_both_",
                  sel_interval, "yrs.pdf"),
-          width = 90 / 25.4, height = 90 / 25.4, fallback_resolution  = 400)
+          width = 88 / 25.4, height = 90 / 25.4, fallback_resolution  = 400,
+          bg = "transparent")
 p1
 dev.off()

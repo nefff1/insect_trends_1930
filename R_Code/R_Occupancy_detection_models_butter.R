@@ -81,7 +81,7 @@ d_other_projects <- fread("Data/RAW_occdet/Projects_other_focus_butter.csv")
 d_experts_butter <- fread('Data/RAW_occdet/d_experts_butter.csv')
 d_expertprojs_butter <- fread('Data/RAW_occdet/d_expertprojs_butter.csv')
 
-# biogeographic zones data (including height)
+# biozones data (including height)
 d_zones <- fread('Data/Other/biogeographic_zones.csv')
 
 # site-year combinations to be analysed
